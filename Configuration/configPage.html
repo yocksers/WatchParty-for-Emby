@@ -1,0 +1,484 @@
+<div is="emby-scroller" class="view flex flex-direction-column scrollFrameY flex-grow" data-horizontal="false" data-forcescrollbar="true" data-centerfocus="true" data-bindheader="true" data-controller="__plugin/configPagejs" data-title="Watch Party">
+    <style>
+        .help-page h2 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+        .help-page h3 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+        .help-page code {
+            background: #333;
+            padding: 0.2em 0.5em;
+            border-radius: 3px;
+        }
+        .help-page kbd {
+            background: #555;
+            padding: 0.2em 0.5em;
+            border-radius: 3px;
+            border: 1px solid #777;
+        }
+    </style>
+    <div class="scrollSlider flex-direction-column padded-left padded-left-page padded-right padded-top-page padded-bottom-page">
+        <div class="readOnlyContent auto-center" style="max-width: 1200px;">
+            <h1 class="pageTitle">Watch Party Configuration</h1>
+
+            <form id="watchPartyConfigForm" class="watchPartyConfigForm">
+                <div class="paper-card" style="padding: 1.5em; margin-top: 2em;">
+                        <h2 style="margin-top:0;">Party Setup</h2>
+                        
+                        <div class="selectContainer">
+                            <label class="selectLabel" for="selectedLibraryId">Select Library</label>
+                            <select is="emby-select" id="selectedLibraryId" class="emby-select-withcolor emby-select">
+                                <option value="">Loading libraries...</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Choose which library to browse for content
+                            </div>
+                        </div>
+
+                        <div class="selectContainer" style="margin-top: 1em;">
+                            <label class="selectLabel" for="selectedItemId">Select Movie or TV Show</label>
+                            <div style="margin-bottom: 0.5em;">
+                                <input is="emby-input" type="text" id="searchContent" placeholder="Search movies and TV shows..." style="width: 100%;" />
+                            </div>
+                            <select is="emby-select" id="selectedItemId" class="emby-select-withcolor emby-select">
+                                <option value="">Select a library first...</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Choose which movie or TV show everyone will watch together
+                            </div>
+                        </div>
+
+                        <div class="selectContainer" id="seriesContainer" style="margin-top: 1em; display: none;">
+                            <label class="selectLabel" for="selectedSeasonId">Select Season</label>
+                            <div style="margin-bottom: 0.5em;">
+                                <input is="emby-input" type="text" id="searchSeason" placeholder="Search seasons..." style="width: 100%;" />
+                            </div>
+                            <select is="emby-select" id="selectedSeasonId" class="emby-select-withcolor emby-select">
+                                <option value="">Select a TV show first...</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Choose which season
+                            </div>
+                        </div>
+
+                        <div class="selectContainer" id="episodeContainer" style="margin-top: 1em; display: none;">
+                            <label class="selectLabel" for="selectedEpisodeId">Select Episode</label>
+                            <div style="margin-bottom: 0.5em;">
+                                <input is="emby-input" type="text" id="searchEpisode" placeholder="Search episodes..." style="width: 100%;" />
+                            </div>
+                            <select is="emby-select" id="selectedEpisodeId" class="emby-select-withcolor emby-select">
+                                <option value="">Select a season first...</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Choose which episode to watch
+                            </div>
+                        </div>
+
+                        <div class="selectContainer" style="margin-top: 1em;">
+                            <label class="selectLabel" for="libraryName">Library Name</label>
+                            <select is="emby-select" id="libraryName" class="emby-select-withcolor emby-select">
+                                <option value="">Loading libraries...</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Select which library to place the .strm files in
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1.5em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="isPartyActive" />
+                                <span>Party is Active</span>
+                            </label>
+                            <div class="fieldDescription">
+                                When active, playback positions sync automatically for all viewers
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="maxParticipants">Maximum Participants</label>
+                            <input is="emby-input" type="number" id="maxParticipants" min="2" max="100" step="1" />
+                            <div class="fieldDescription">
+                                Maximum number of people who can watch together (2-100)
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 2em; margin-bottom: 1em; color: #4CAF50;">Access Control & Waiting Room</h3>
+
+                        <div class="selectContainer" style="margin-top: 1em;">
+                            <label class="selectLabel" for="allowedUsers">Allowed Users (Optional)</label>
+                            <select is="emby-select" id="allowedUsers" multiple size="5" class="emby-select-withcolor emby-select">
+                                <option value="">Loading users...</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Hold Ctrl/Cmd to select multiple users. Leave empty for public party.
+                            </div>
+                        </div>
+
+                        <div class="selectContainer" style="margin-top: 1em;">
+                            <label class="selectLabel" for="masterUser">Master User (Required)</label>
+                            <select is="emby-select" id="masterUser" class="emby-select-withcolor emby-select">
+                                <option value="">-- Select master user --</option>
+                            </select>
+                            <div class="fieldDescription">
+                                The user whose playback position everyone else will sync to. Only this user can control playback.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel" for="partyPassword">Party Password (Optional)</label>
+                            <input is="emby-input" type="password" id="partyPassword" class="emby-input" />
+                            <div class="fieldDescription">
+                                Password for external dashboard access. Leave empty for public parties.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="isWaitingRoom" />
+                                <span>Enable Waiting Room</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Pause all users until everyone starts playing the content
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="autoStartWhenReady" />
+                                <span>Auto-start with Minimum Members</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Automatically start when the minimum number of members have started playback
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="minReadyCount">Minimum Members Count</label>
+                            <input is="emby-input" type="number" id="minReadyCount" min="1" max="50" step="1" value="1" />
+                            <div class="fieldDescription">
+                                Minimum number of members who must start playback before party begins
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 2em; margin-bottom: 1em; color: #4CAF50;">Playback Controls</h3>
+
+                        <div class="selectContainer" style="margin-top: 1em;">
+                            <label class="selectLabel" for="pauseControl">Pause Control</label>
+                            <select is="emby-select" id="pauseControl" class="emby-select-withcolor emby-select">
+                                <option value="Anyone">Anyone Can Pause</option>
+                                <option value="Host">Host Only</option>
+                                <option value="Vote">Vote Required</option>
+                            </select>
+                            <div class="fieldDescription">
+                                Who can pause playback
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="hostOnlySeek" />
+                                <span>Host-Only Seeking</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Only host can skip forward/backward
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="lockSeekAhead" />
+                                <span>Lock Seeking Ahead</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Prevent non-hosts from skipping ahead (prevent spoilers)
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 2em; margin-bottom: 1em; color: #4CAF50;">Sync & Performance</h3>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="syncToleranceSeconds">Sync Tolerance (seconds)</label>
+                            <input is="emby-input" type="number" id="syncToleranceSeconds" min="1" max="60" step="1" value="10" />
+                            <div class="fieldDescription">
+                                How many seconds difference before syncing (lower = tighter sync)
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="maxBufferThresholdSeconds">Buffer Threshold (seconds)</label>
+                            <input is="emby-input" type="number" id="maxBufferThresholdSeconds" min="10" max="120" step="5" value="30" />
+                            <div class="fieldDescription">
+                                Mark user as buffering if they fall behind this many seconds
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="autoKickInactive" />
+                                <span>Auto-Kick Inactive Users</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Automatically remove users who haven't been active
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="inactiveTimeoutMinutes">Inactive Timeout (minutes)</label>
+                            <input is="emby-input" type="number" id="inactiveTimeoutMinutes" min="5" max="120" step="5" value="15" />
+                            <div class="fieldDescription">
+                                How long before inactive users are removed
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 2em; margin-bottom: 1em; color: #4CAF50;">Network Latency Compensation</h3>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableNetworkLatencyCompensation" />
+                                <span>Enable Network Latency Compensation</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Measure and compensate for network round-trip time between server and clients
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="networkLatencyMeasurementIntervalSeconds">Latency Measurement Interval (seconds)</label>
+                            <input is="emby-input" type="number" id="networkLatencyMeasurementIntervalSeconds" min="10" max="300" step="10" value="30" />
+                            <div class="fieldDescription">
+                                How often to measure network latency (10-300 seconds, default: 30)
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="autoAdjustForLatency" />
+                                <span>Auto-Adjust for Latency</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Automatically adjust sync timing based on measured latency
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="maxLatencyCompensationMs">Maximum Latency Compensation (ms)</label>
+                            <input is="emby-input" type="number" id="maxLatencyCompensationMs" min="100" max="10000" step="100" value="5000" />
+                            <div class="fieldDescription">
+                                Maximum latency compensation to apply (100-10000 ms, default: 5000)
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 2em; margin-bottom: 1em; color: #4CAF50;">Global Settings</h3>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="syncIntervalSeconds">Sync Interval (seconds)</label>
+                            <input is="emby-input" type="number" id="syncIntervalSeconds" min="1" max="60" step="1" />
+                            <div class="fieldDescription">
+                                How often to check and sync viewer positions (1-60 seconds, default: 5)
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="syncOffsetMilliseconds">Sync Offset (milliseconds)</label>
+                            <input is="emby-input" type="number" id="syncOffsetMilliseconds" min="-10000" max="10000" step="100" />
+                            <div class="fieldDescription">
+                                Adjust sync position: positive values place viewers ahead, negative values add delay (-10000 to +10000 ms, default: 1000)
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1.5em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableDebugLogging" />
+                                <span>Enable Debug Logging</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Enable verbose logging for troubleshooting
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 2em; margin-bottom: 1em; color: #2196F3;">External Dashboard</h3>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableExternalWebServer" />
+                                <span>Enable External Web Server</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Start a separate web server to host the external dashboard
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="externalWebServerPort">Web Server Port</label>
+                            <input is="emby-input" type="number" id="externalWebServerPort" min="1024" max="65535" step="1" />
+                            <div class="fieldDescription">
+                                Port number for the external dashboard (default: 8097). Web server will automatically restart when changed.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="adminPassword">Admin Password</label>
+                            <input is="emby-input" type="password" id="adminPassword" autocomplete="new-password" />
+                            <div class="fieldDescription">
+                                Set a password to allow creating watch parties from the external dashboard. Leave blank to disable party creation.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="externalServerUrl">External Server URL</label>
+                            <input is="emby-input" type="text" id="externalServerUrl" placeholder="https://emby.example.com" />
+                            <div class="fieldDescription">
+                                Public URL for accessing Emby from external networks (e.g., https://emby.example.com). This will be pre-filled in the external dashboard for playing videos. Leave blank to use localhost.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="embyApiKey">Emby API Key</label>
+                            <input is="emby-input" type="password" id="embyApiKey" autocomplete="off" />
+                            <div class="fieldDescription">
+                                <strong>Required for external dashboard.</strong> The web server uses this to access Emby libraries, users, and content.<br>
+                                <strong>How to get your API key:</strong><br>
+                                1. Go to Emby Dashboard → API Keys<br>
+                                2. Click "+" to create a new API key<br>
+                                3. Name it "WatchPartyForEmby" or similar<br>
+                                4. Copy the generated API key and paste it here
+                            </div>
+                        </div>
+
+                        <div class="selectContainer" style="margin-top: 1em;">
+                            <label class="selectLabel" for="strmTargetLibrary">STRM Files Target Library</label>
+                            <select is="emby-select" id="strmTargetLibrary" class="emby-select-withcolor emby-select">
+                                <option value="">Loading libraries...</option>
+                            </select>
+                            <div class="fieldDescription">
+                                <strong>Required.</strong> All STRM files created from the external dashboard will be placed in this library. This prevents users from adding files to incorrect libraries.
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 1em; padding: 1em; background: #2d2d2d; border-left: 3px solid #FFA500; border-radius: 4px;">
+                            <strong style="color: #FFA500;">Windows Setup Required:</strong>
+                            <p style="margin: 0.5em 0; font-size: 0.9em;">
+                                On Windows, you must grant permission for the web server to use the port. Run this command as <strong>Administrator</strong> in PowerShell or Command Prompt:
+                            </p>
+                            <code style="display: block; background: #1a1a1a; padding: 0.7em; margin: 0.5em 0; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.85em;">
+                                netsh http add urlacl url=http://*:<span id="portPlaceholder">8097</span>/ user="Everyone"
+                            </code>
+                            <p style="margin: 0.5em 0 0 0; font-size: 0.85em; color: #aaa;">
+                                If you change the port, you must run this command again with the new port number. The web server will restart automatically.
+                            </p>
+                        </div>
+
+                        <div style="margin-top: 1em; padding: 1em; background: #2d2d2d; border-left: 3px solid #2196F3; border-radius: 4px;">
+                            <strong style="color: #2196F3;">Linux / Docker Setup:</strong>
+                            <p style="margin: 0.5em 0; font-size: 0.9em;">
+                                On Linux, "Access Denied" errors are less common but can occur if Emby is not run with sufficient permissions.
+                            </p>
+                            <p style="margin: 0.5em 0; font-size: 0.9em;">
+                                <strong>For Docker users:</strong> You must map the port when creating your container. Add this argument to your <code style="background: #1a1a1a; padding: 0.2em 0.4em; border-radius: 3px;">docker run</code> command:
+                            </p>
+                            <code style="display: block; background: #1a1a1a; padding: 0.7em; margin: 0.5em 0; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.85em;">
+                                -p <span id="portPlaceholderDocker">8097</span>:<span id="portPlaceholderDocker2">8097</span>
+                            </code>
+                            <p style="margin: 0.5em 0 0 0; font-size: 0.85em; color: #aaa;">
+                                Replace with your chosen port number.
+                            </p>
+                        </div>
+
+                        <div id="webServerStatus" style="margin-top: 1em; padding: 1em; background: #333; border-radius: 4px;">
+                            <strong>Status:</strong> <span id="webServerStatusText">Checking...</span>
+                        </div>
+
+                        <div style="margin-top: 2em; display: flex; gap: 1em;">
+                            <button is="emby-button" type="button" id="btnSaveSettings" class="raised button-submit" style="flex: 1;">
+                                <span>Save Settings</span>
+                            </button>
+                            <button is="emby-button" type="submit" class="raised button-submit" style="flex: 1;">
+                                <span>Create Watch Party</span>
+                            </button>
+                        </div>
+                        
+                        <div style="margin-top: 1em;">
+                            <button is="emby-button" type="button" id="btnOpenDashboard" class="raised" style="width: 100%; background: #4CAF50;">
+                                <span>📊 Open Dashboard</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="paper-card" style="padding: 1.5em; margin-top: 2em;">
+                        <h2 style="margin-top:0;">Active Watch Parties</h2>
+                        
+                        <div id="activePartiesList">
+                            <p style="color: #999;">No active watch parties</p>
+                        </div>
+                    </div>
+
+                    <div class="paper-card" style="padding: 1.5em; margin-top: 2em; text-align: center; background: linear-gradient(135deg, rgba(255,221,87,0.1) 0%, rgba(255,152,0,0.1) 100%); border-left: 4px solid #FFA726;">
+                        <h3 style="margin-top: 0; color: #F57C00;">☕ Support This Plugin</h3>
+                        <a href="https://buymeacoffee.com/yockser" target="_blank" rel="noopener noreferrer">
+                            <img id="donateImage" alt="Buy Me A Coffee" style="max-width: 200px; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        </a>
+                        <p style="margin-top: 0.75em; font-size: 0.95em; opacity: 0.85;">If you like this plugin please consider donating a coffee.</p>
+                    </div>
+
+                    <div class="paper-card help-page" style="padding: 1.5em 2em; margin-top: 2em;">
+                        <h2 style="margin-top: 0;">How It Works</h2>
+                        
+                        <div style="background: #4CAF5022; border-left: 4px solid #4CAF50; padding: 1em; margin-bottom: 1.5em;">
+                            <strong>Simple Watch Party for All Devices</strong>
+                            <p style="margin: 0.5em 0;">
+                                1. Admin selects a library to use for watch parties<br>
+                                2. Admin selects content and creates watch parties<br>
+                                3. .strm files are automatically created in the selected library<br>
+                                4. Users browse the library and play items to join parties<br>
+                                5. Everyone watches together with synchronized playback!
+                            </p>
+                        </div>
+
+                        <h3>How to Use:</h3>
+                        <ol>
+                            <li><strong>Admin:</strong> Select a library from the "Library Name" dropdown</li>
+                            <li><strong>Admin:</strong> Select content from the dropdowns above</li>
+                            <li><strong>Admin:</strong> Activate party and click "Create Watch Party"</li>
+                            <li><strong>Automatic:</strong> .strm files are created directly in the selected library with original filenames</li>
+                            <li><strong>Everyone:</strong> Browse to the library and play the content</li>
+                            <li><strong>Synced:</strong> The plugin keeps everyone at the same position and automatically rescans the library</li>
+                        </ol>
+
+                        <h3>STRM File System:</h3>
+                        <p>
+                            When you create a watch party, the plugin creates a .strm file pointing to your selected content.
+                            Files use the original media filenames so Emby recognizes them properly (e.g., "Dredd (2012).strm").
+                            Files are placed directly in the library you select, and the library is automatically rescanned.
+                        </p>
+
+                        <h3>Works on All Platforms:</h3>
+                        <ul>
+                            <li>Emby Web Browser</li>
+                            <li>Emby for Android</li>
+                            <li>Emby for iOS</li>
+                            <li>Emby for Smart TVs</li>
+                            <li>Any Emby client that can browse libraries!</li>
+                        </ul>
+
+                        <h3>How Syncing Works:</h3>
+                        <p>
+                            When the party is active, the plugin monitors playback events. When anyone plays a .strm file 
+                            from the watch party library, they automatically start at the current synced position. 
+                            The first person to start becomes the host, and their position is tracked for syncing others.
+                        </p>
+
+                        <h3>Troubleshooting:</h3>
+                        <ul>
+                            <li><strong>Content not syncing?</strong> Make sure "Party is Active" is checked and saved</li>
+                            <li><strong>STRM files not showing?</strong> Scan the library in Emby or check the STRM folder path</li>
+                            <li><strong>Wrong content?</strong> Delete the party and create a new one with the correct content</li>
+                            <li><strong>Need logs?</strong> Enable "Debug Logging" above and check server logs</li>
+                        </ul>
+                    </div>
+                </form>
+        </div>
+    </div>
+</div>

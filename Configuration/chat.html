@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Party Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+            padding: 15px 20px;
+            border-bottom: 2px solid #4CAF50;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .chat-header h1 {
+            font-size: 1.3em;
+            margin-bottom: 5px;
+        }
+        
+        .chat-header .subtitle {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        
+        .online-users {
+            background: rgba(255,255,255,0.05);
+            padding: 10px 20px;
+            border-bottom: 1px solid #333;
+            font-size: 0.85em;
+            color: #4CAF50;
+        }
+        
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 10px;
+            word-wrap: break-word;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message.own {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            border-bottom-right-radius: 0;
+        }
+        
+        .message.other {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.1);
+            border-bottom-left-radius: 0;
+        }
+        
+        .message .username {
+            font-weight: bold;
+            font-size: 0.85em;
+            margin-bottom: 3px;
+            color: #4CAF50;
+        }
+        
+        .message.own .username {
+            color: #fff;
+        }
+        
+        .message .text {
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+        
+        .message .time {
+            font-size: 0.7em;
+            color: rgba(255,255,255,0.6);
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .system-message {
+            align-self: center;
+            background: rgba(255,255,255,0.05);
+            color: #aaa;
+            font-size: 0.85em;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-style: italic;
+        }
+        
+        .input-container {
+            background: #16213e;
+            padding: 15px 20px;
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 10px;
+        }
+        
+        #messageInput {
+            flex: 1;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #444;
+            color: #fff;
+            padding: 12px 15px;
+            border-radius: 25px;
+            font-size: 0.95em;
+            outline: none;
+            transition: all 0.3s;
+        }
+        
+        #messageInput:focus {
+            border-color: #4CAF50;
+            background: rgba(255,255,255,0.15);
+        }
+        
+        #sendButton {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95em;
+            transition: all 0.3s;
+        }
+        
+        #sendButton:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+        
+        #sendButton:active {
+            transform: scale(0.95);
+        }
+        
+        .messages-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .messages-container::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #4CAF50;
+            border-radius: 4px;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-header">
+        <h1 id="partyTitle">Loading...</h1>
+        <div class="subtitle">Watch Party Chat</div>
+    </div>
+    
+    <div class="online-users" id="onlineUsers">
+        👥 Connected: <span id="userCount">0</span> users
+    </div>
+    
+    <div class="messages-container" id="messagesContainer">
+        <div class="system-message">Welcome to the chat! Say hello 👋</div>
+    </div>
+    
+    <div class="input-container">
+        <input type="text" id="messageInput" placeholder="Type your message..." maxlength="500">
+        <button id="sendButton">Send</button>
+    </div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const partyId = urlParams.get('partyId');
+        const username = urlParams.get('username');
+        const partyName = urlParams.get('partyName');
+        
+        document.getElementById('partyTitle').textContent = partyName || 'Watch Party Chat';
+        
+        const userId = `${username}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const chatStorageKey = `watchparty_chat_${partyId}`;
+        const usersStorageKey = `watchparty_users_${partyId}`;
+        
+        let messages = [];
+        let users = new Set();
+        
+        function loadData() {
+            try {
+                const savedMessages = localStorage.getItem(chatStorageKey);
+                if (savedMessages) {
+                    messages = JSON.parse(savedMessages);
+                    renderMessages();
+                }
+                
+                const savedUsers = localStorage.getItem(usersStorageKey);
+                if (savedUsers) {
+                    users = new Set(JSON.parse(savedUsers));
+                }
+            } catch (e) {
+                console.error('Error loading chat data:', e);
+            }
+            
+            addUser(username);
+            
+            addSystemMessage(`${username} joined the chat`);
+        }
+        
+        function addUser(name) {
+            users.add(name);
+            updateUserCount();
+            saveUsers();
+        }
+        
+        function removeUser(name) {
+            users.delete(name);
+            updateUserCount();
+            saveUsers();
+        }
+        
+        function updateUserCount() {
+            document.getElementById('userCount').textContent = users.size;
+        }
+        
+        function saveUsers() {
+            try {
+                localStorage.setItem(usersStorageKey, JSON.stringify([...users]));
+            } catch (e) {
+                console.error('Error saving users:', e);
+            }
+        }
+        
+        function addSystemMessage(text) {
+            const message = {
+                type: 'system',
+                text: text,
+                timestamp: Date.now()
+            };
+            messages.push(message);
+            saveMessages();
+            renderMessages();
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            
+            if (!text) return;
+            
+            const message = {
+                id: Date.now() + Math.random(),
+                userId: userId,
+                username: username,
+                text: text,
+                timestamp: Date.now(),
+                type: 'message'
+            };
+            
+            messages.push(message);
+            saveMessages();
+            renderMessages();
+            
+            input.value = '';
+            input.focus();
+        }
+        
+        function saveMessages() {
+            try {
+                if (messages.length > 100) {
+                    messages = messages.slice(-100);
+                }
+                localStorage.setItem(chatStorageKey, JSON.stringify(messages));
+                
+                window.dispatchEvent(new Event('storage'));
+            } catch (e) {
+                console.error('Error saving messages:', e);
+            }
+        }
+        
+        function renderMessages() {
+            const container = document.getElementById('messagesContainer');
+            const wasScrolledToBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+            
+            container.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                
+                if (msg.type === 'system') {
+                    messageDiv.className = 'system-message';
+                    messageDiv.textContent = msg.text;
+                } else {
+                    const isOwn = msg.userId === userId;
+                    messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+                    
+                    const usernameDiv = document.createElement('div');
+                    usernameDiv.className = 'username';
+                    usernameDiv.textContent = msg.username;
+                    
+                    const textDiv = document.createElement('div');
+                    textDiv.className = 'text';
+                    textDiv.textContent = msg.text;
+                    
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'time';
+                    timeDiv.textContent = formatTime(msg.timestamp);
+                    
+                    messageDiv.appendChild(usernameDiv);
+                    messageDiv.appendChild(textDiv);
+                    messageDiv.appendChild(timeDiv);
+                }
+                
+                container.appendChild(messageDiv);
+            });
+            
+            if (wasScrolledToBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+        
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+        
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        window.addEventListener('storage', (e) => {
+            if (e.key === chatStorageKey) {
+                try {
+                    const newMessages = JSON.parse(e.newValue || '[]');
+                    messages = newMessages;
+                    renderMessages();
+                } catch (err) {
+                    console.error('Error parsing storage event:', err);
+                }
+            } else if (e.key === usersStorageKey) {
+                try {
+                    const newUsers = JSON.parse(e.newValue || '[]');
+                    users = new Set(newUsers);
+                    updateUserCount();
+                } catch (err) {
+                    console.error('Error parsing users:', err);
+                }
+            }
+        });
+        
+        window.addEventListener('beforeunload', () => {
+            addSystemMessage(`${username} left the chat`);
+            removeUser(username);
+        });
+        
+        loadData();
+        
+        document.getElementById('messageInput').focus();
+        
+        setInterval(() => {
+            try {
+                const savedMessages = localStorage.getItem(chatStorageKey);
+                if (savedMessages) {
+                    const newMessages = JSON.parse(savedMessages);
+                    if (newMessages.length !== messages.length) {
+                        messages = newMessages;
+                        renderMessages();
+                    }
+                }
+                
+                const savedUsers = localStorage.getItem(usersStorageKey);
+                if (savedUsers) {
+                    const newUsers = new Set(JSON.parse(savedUsers));
+                    if (newUsers.size !== users.size) {
+                        users = newUsers;
+                        updateUserCount();
+                    }
+                }
+            } catch (e) {
+                console.error('Error polling updates:', e);
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

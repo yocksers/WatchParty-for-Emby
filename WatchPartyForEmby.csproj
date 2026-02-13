@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyVersion>1.3.0</AssemblyVersion>
+    <FileVersion>1.3.0</FileVersion>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediaBrowser.Server.Core" Version="4.8.0.80" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Configuration\configPage.html" />
+    <EmbeddedResource Include="Configuration\configPage.js" />
+    <EmbeddedResource Include="Configuration\dashboard.html" />
+    <EmbeddedResource Include="Configuration\external.html" />
+    <EmbeddedResource Include="Configuration\chat.html" />
+    <EmbeddedResource Include="Configuration\api.js" />
+    <EmbeddedResource Include="Configuration\ui.js" />
+    <EmbeddedResource Include="Configuration\partyManager.js" />
+    <EmbeddedResource Include="images\logo.jpg" />
+    <EmbeddedResource Include="images\donate.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="test\**" />
+    <EmbeddedResource Remove="test\**" />
+    <None Remove="test\**" />
+  </ItemGroup>
+
+</Project>

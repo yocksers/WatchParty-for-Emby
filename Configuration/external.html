@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Party Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+        
+        .input-group {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: #999;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 1rem;
+        }
+        
+        .input-group button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .input-group button:hover {
+            background: #45a049;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            margin-top: 10px;
+            color: #999;
+            font-size: 0.9rem;
+        }
+        
+        .party-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .party-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            border: 2px solid #3a3a3a;
+        }
+        
+        .party-card.active {
+            border-color: #4CAF50;
+        }
+        
+        .party-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .party-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-badge.active {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status-badge.inactive {
+            background: #666;
+            color: #ccc;
+        }
+        
+        .party-info {
+            margin-bottom: 15px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 0.9rem;
+        }
+        
+        .info-label {
+            color: #999;
+        }
+        
+        .info-value {
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .error {
+            background: #d32f2f;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+        
+        .load-more-option {
+            font-style: italic;
+            color: #4CAF50 !important;
+            background: #2a2a2a !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Watch Party Dashboard</h1>
+        
+        <div class="input-group">
+            <label for="serverUrl">Emby Server URL:</label>
+            <input type="text" id="serverUrl" placeholder="http://localhost:8096" value="http://localhost:8096">
+            <small style="display: block; color: #999; margin-top: 5px;">Change this if your Emby server uses a different port</small>
+            
+            <label for="password" style="margin-top: 15px;">Password (if required):</label>
+            <input type="password" id="password" placeholder="Leave empty for public parties">
+            
+            <button id="loadButton">Load Parties</button>
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalParties">0</div>
+                <div class="stat-label">Total Parties</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activeParties">0</div>
+                <div class="stat-label">Active Parties</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalParticipants">0</div>
+                <div class="stat-label">Total Participants</div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">Click "Load Parties" to start</div>
+        
+        <div class="party-grid" id="partyGrid" style="display: none;"></div>
+        
+        <button class="refresh-btn" id="refreshButton" title="Refresh">⟳</button>
+        <button class="refresh-btn" id="createButton" title="Create Party" style="right: 110px;">+</button>
+    </div>
+
+    <div id="createPartyModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
+        <div style="background: #1a1a1a; padding: 30px; border-radius: 8px; max-width: 800px; width: 90%; margin: 20px auto; max-height: 90vh; overflow-y: auto;">
+            <h2 style="margin-top: 0;">Create New Watch Party</h2>
+            
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Content Selection</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Source Library:</label>
+                <select id="newSourceLibrary" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="">Loading libraries...</option>
+                </select>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Select Content:</label>
+                <input type="text" id="searchContent" placeholder="Search movies and TV shows..." style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; margin-bottom: 8px;">
+                <select id="newContentItem" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="">Select a library first</option>
+                </select>
+            </div>
+            <div id="seriesControls" style="display: none;">
+                <div style="margin: 15px 0;">
+                    <label style="display: block; margin-bottom: 5px;">Season:</label>
+                    <input type="text" id="searchSeason" placeholder="Search seasons..." style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; margin-bottom: 8px;">
+                    <select id="newSeason" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <option value="">Select a season</option>
+                    </select>
+                </div>
+                <div style="margin: 15px 0;">
+                    <label style="display: block; margin-bottom: 5px;">Episode:</label>
+                    <input type="text" id="searchEpisode" placeholder="Search episodes..." style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; margin-bottom: 8px;">
+                    <select id="newEpisode" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <option value="">Select an episode</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Party Settings</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newIsActive" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Activate party immediately</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Max Participants:</label>
+                <input type="number" id="newMaxParticipants" value="50" min="2" max="100" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Party Password (optional):</label>
+                <input type="password" id="newPartyPassword" placeholder="Leave empty for no password" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">User Management</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Master User (controls playback):</label>
+                <select id="newMasterUser" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="">Loading users...</option>
+                </select>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Allowed Users (hold Ctrl to select multiple, leave empty for all):</label>
+                <select id="newAllowedUsers" multiple size="5" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="">Loading users...</option>
+                </select>
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Waiting Room</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newWaitingRoom" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Enable waiting room (users must mark ready)</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newAutoStart" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Auto-start when ready</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Min ready count for auto-start:</label>
+                <input type="number" id="newMinReady" value="1" min="1" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Playback Control</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Pause Control:</label>
+                <select id="newPauseControl" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="Anyone">Anyone can pause</option>
+                    <option value="HostOnly">Host only</option>
+                    <option value="Disabled">Disabled</option>
+                </select>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newHostOnlySeek" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Host only can seek</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newLockSeekAhead" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Lock seek ahead of master position</span>
+                </label>
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Sync Settings</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Sync tolerance (seconds):</label>
+                <input type="number" id="newSyncTolerance" value="10" min="1" max="60" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Max buffer threshold (seconds):</label>
+                <input type="number" id="newMaxBuffer" value="30" min="5" max="120" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Inactive User Management</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newAutoKick" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Auto-kick inactive users</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Inactive timeout (minutes):</label>
+                <input type="number" id="newInactiveTimeout" value="15" min="1" max="120" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Network Latency Compensation</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newEnableNetworkLatencyCompensation" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Enable network latency compensation</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Latency measurement interval (seconds):</label>
+                <input type="number" id="newNetworkLatencyMeasurementIntervalSeconds" value="30" min="10" max="300" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newAutoAdjustForLatency" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Auto-adjust for latency</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Maximum latency compensation (ms):</label>
+                <input type="number" id="newMaxLatencyCompensationMs" value="5000" min="100" max="10000" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="confirmCreateButton" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Create Party</button>
+                <button id="cancelCreateButton" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        console.log('External Dashboard loaded');
+        
+        function formatTime(ticks) {
+            if (!ticks || ticks === 0) {
+                return '0:00';
+            }
+            const totalSeconds = Math.floor(ticks / 10000000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            return `${minutes}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        let userNameCache = {};
+        
+        async function lookupUserName(userId) {
+            if (!userId || userId === 'Not set') {
+                return 'Not set';
+            }
+            
+            if (userNameCache[userId]) {
+                return userNameCache[userId];
+            }
+            
+            try {
+                const webServerUrl = window.location.origin;
+                const response = await fetch(`${webServerUrl}/api/users/lookup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    userNameCache[userId] = data.userName;
+                    return data.userName;
+                }
+            } catch (error) {
+                console.error('Failed to lookup username:', error);
+            }
+            
+            return userId; // Fallback to user ID
+        }
+        
+        async function createPartyCard(party) {
+            const statusClass = party.IsActive ? 'active' : 'inactive';
+            const statusText = party.IsActive ? 'Active' : 'Inactive';
+            const lockIcon = party.RequiresPassword ? '🔒 ' : '';
+            const itemId = party.ItemId || '';
+            const hostUserName = await lookupUserName(party.HostUserName);
+            
+            return `
+                <div class="party-card ${statusClass}">
+                    <div class="party-header">
+                        <div class="party-title">${lockIcon}${party.ItemName || 'Unnamed Party'}</div>
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="party-info" onclick="joinParty('${party.Id}', ${party.RequiresPassword}, '${escapeHtml(party.ItemName || 'Unnamed Party')}')" style="cursor: pointer;">
+                        <div class="info-row">
+                            <span class="info-label">Type:</span>
+                            <span class="info-value">${party.ItemType || 'Unknown'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Master:</span>
+                            <span class="info-value">${hostUserName}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Participants:</span>
+                            <span class="info-value">${party.ParticipantCount || 0} / ${party.MaxParticipants}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Position:</span>
+                            <span class="info-value">${formatTime(party.CurrentPositionTicks)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value">${party.IsPlaying ? '▶ Playing' : '⏸ Paused'}</span>
+                        </div>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #444; text-align: center; color: #4CAF50;">
+                            💬 Click to join chat
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #444; display: flex; gap: 10px;">
+                        <button onclick="playVideo(event, '${party.Id}', '${itemId}')" style="flex: 1; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">▶️ Play</button>
+                        <button onclick="deleteParty(event, '${party.Id}', '${escapeHtml(party.ItemName || 'Unnamed Party')}')" style="flex: 1; padding: 8px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Delete</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function joinParty(partyId, requiresPassword, partyName) {
+            if (requiresPassword) {
+                const password = prompt(`Enter password for "${partyName}":`);
+                if (!password) return;
+                
+                sessionStorage.setItem(`party_${partyId}_password`, password);
+            }
+            
+            const username = prompt('Enter your name for the chat:');
+            if (!username || !username.trim()) {
+                alert('Username is required to join the chat!');
+                return;
+            }
+            
+            const chatUrl = `chat.html?partyId=${encodeURIComponent(partyId)}&username=${encodeURIComponent(username.trim())}&partyName=${encodeURIComponent(partyName)}`;
+            window.open(chatUrl, `chat_${partyId}`, 'width=500,height=700,resizable=yes,scrollbars=yes');
+        }
+        
+        let cachedServerId = null;
+        
+        async function getServerId() {
+            if (cachedServerId) {
+                return cachedServerId;
+            }
+            
+            try {
+                const embyServerUrl = document.getElementById('serverUrl').value.trim() || 'http://localhost:8096';
+                const response = await fetch(`${embyServerUrl}/emby/System/Info/Public`);
+                if (response.ok) {
+                    const data = await response.json();
+                    cachedServerId = data.Id;
+                    return cachedServerId;
+                }
+            } catch (error) {
+                console.error('Failed to fetch server ID:', error);
+            }
+            return null;
+        }
+        
+        async function playVideo(event, partyId, itemId) {
+            event.stopPropagation();
+            
+            if (!itemId) {
+                alert('No video selected for this party');
+                return;
+            }
+            
+            const embyServerUrl = document.getElementById('serverUrl').value.trim() || 'http://localhost:8096';
+            const serverId = await getServerId();
+            
+            // Open Emby web player in a new tab
+            const playUrl = serverId 
+                ? `${embyServerUrl}/web/index.html#!/item?id=${encodeURIComponent(itemId)}&context=home&serverId=${serverId}`
+                : `${embyServerUrl}/web/index.html#!/item?id=${encodeURIComponent(itemId)}&context=home`;
+            window.open(playUrl, '_blank');
+        }
+        
+        async function deleteParty(event, partyId, partyName) {
+            event.stopPropagation();
+            
+            if (!confirm(`Are you sure you want to delete "${partyName}"?`)) {
+                return;
+            }
+            
+            const adminPassword = prompt('Enter admin password to confirm deletion:');
+            if (!adminPassword) {
+                return;
+            }
+            
+            const webServerUrl = window.location.origin;
+            
+            try {
+                const response = await fetch(`${webServerUrl}/api/parties/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        partyId: partyId,
+                        adminPassword: adminPassword
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete party');
+                }
+                
+                alert('Party deleted successfully!');
+                loadParties();
+            } catch (err) {
+                alert(`Error deleting party: ${err.message}`);
+            }
+        }
+        
+        async function loadParties() {
+            try {
+                const embyServerUrl = document.getElementById('serverUrl').value.trim();
+                let password = document.getElementById('password').value.trim();
+                const webServerUrl = window.location.origin;
+                
+                // If no password entered, try to use session-stored password
+                if (!password) {
+                    const sessionPassword = sessionStorage.getItem('watchPartyPassword');
+                    if (sessionPassword) {
+                        password = sessionPassword;
+                        document.getElementById('password').value = password;
+                    }
+                }
+                
+                localStorage.setItem('watchPartyServer', embyServerUrl);
+                
+                if (!embyServerUrl) {
+                    throw new Error('Please enter an Emby server URL');
+                }
+                
+                const url = password 
+                    ? `${webServerUrl}/api/parties?password=${encodeURIComponent(password)}` 
+                    : `${webServerUrl}/api/parties`;
+                
+                console.log('Fetching from:', url);
+                const response = await fetch(url);
+                
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    // If unauthorized/forbidden, password is wrong - clear it and ask user to re-enter
+                    if (response.status === 401 || response.status === 403) {
+                        sessionStorage.removeItem('watchPartyPassword');
+                        document.getElementById('password').value = '';
+                        throw new Error('Invalid password. Please enter the correct password.');
+                    }
+                    const errorText = await response.text();
+                    console.error('Response error:', errorText);
+                    throw new Error(`Failed to load parties (${response.status}): ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Received data:', data);
+                const parties = data.Parties || [];
+                
+                // Password was correct, save it to session storage (cleared when tab closes)
+                if (password) {
+                    sessionStorage.setItem('watchPartyPassword', password);
+                }
+                
+                // Debug: Log each party's ItemId
+                parties.forEach((party, index) => {
+                    console.log(`Party ${index}: Name="${party.ItemName}", ItemId="${party.ItemId}"`);
+                });
+                
+                document.getElementById('totalParties').textContent = parties.length;
+                document.getElementById('activeParties').textContent = parties.filter(p => p.IsActive).length;
+                document.getElementById('totalParticipants').textContent = parties.reduce((sum, p) => sum + (p.ParticipantCount || 0), 0);
+                
+                const grid = document.getElementById('partyGrid');
+                const loading = document.getElementById('loading');
+                const error = document.getElementById('error');
+                
+                if (parties.length === 0) {
+                    loading.style.display = 'block';
+                    loading.textContent = 'No watch parties found';
+                    grid.style.display = 'none';
+                } else {
+                    loading.style.display = 'none';
+                    grid.style.display = 'grid';
+                    // Use Promise.all to wait for all party cards to be created
+                    const partyCards = await Promise.all(parties.map(party => createPartyCard(party)));
+                    grid.innerHTML = partyCards.join('');
+                }
+                
+                error.style.display = 'none';
+            } catch (err) {
+                console.error('Error loading parties:', err);
+                const errorEl = document.getElementById('error');
+                errorEl.textContent = `Error: ${err.message}. Check browser console (F12) for details.`;
+                errorEl.style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        window.addEventListener('DOMContentLoaded', async function() {
+            console.log('DOM loaded, setting up event listeners');
+            
+            // Fetch the configured external server URL
+            try {
+                const webServerUrl = window.location.origin;
+                const response = await fetch(`${webServerUrl}/api/config/external-url`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.externalServerUrl) {
+                        document.getElementById('serverUrl').value = data.externalServerUrl;
+                        console.log('Loaded external server URL from config:', data.externalServerUrl);
+                        // Don't override with localStorage if we have a configured URL
+                        localStorage.setItem('watchPartyServer', data.externalServerUrl);
+                    } else {
+                        // Fallback to default behavior if no external URL configured
+                        const currentOrigin = window.location.origin;
+                        const currentPort = window.location.port;
+                        const defaultEmbyUrl = (currentPort && currentPort !== '8096') ? 'http://localhost:8096' : currentOrigin;
+                        
+                        const saved = localStorage.getItem('watchPartyServer');
+                        document.getElementById('serverUrl').value = saved || defaultEmbyUrl;
+                    }
+                } else {
+                    throw new Error('Failed to fetch config');
+                }
+            } catch (error) {
+                console.error('Error loading external server URL:', error);
+                // Fallback to default behavior
+                const currentOrigin = window.location.origin;
+                const currentPort = window.location.port;
+                const defaultEmbyUrl = (currentPort && currentPort !== '8096') ? 'http://localhost:8096' : currentOrigin;
+                
+                const saved = localStorage.getItem('watchPartyServer');
+                document.getElementById('serverUrl').value = saved || defaultEmbyUrl;
+            }
+            
+            // Load password from session storage (cleared when browser tab/window closes)
+            const sessionPwd = sessionStorage.getItem('watchPartyPassword');
+            if (sessionPwd) document.getElementById('password').value = sessionPwd;
+            
+            // Clean up any old passwords stored in localStorage
+            localStorage.removeItem('watchPartyPassword');
+            
+            const loadBtn = document.getElementById('loadButton');
+            const refreshBtn = document.getElementById('refreshButton');
+            
+            if (loadBtn) {
+                loadBtn.addEventListener('click', loadParties);
+                console.log('Load button listener attached');
+            } else {
+                console.error('Load button not found!');
+            }
+            
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', loadParties);
+                console.log('Refresh button listener attached');
+            } else {
+                console.error('Refresh button not found!');
+            }
+            
+            const createBtn = document.getElementById('createButton');
+            if (createBtn) {
+                createBtn.addEventListener('click', showCreatePartyModal);
+            }
+            
+            document.getElementById('cancelCreateButton').addEventListener('click', hideCreatePartyModal);
+            document.getElementById('confirmCreateButton').addEventListener('click', createParty);
+            
+            document.getElementById('newSourceLibrary').addEventListener('change', function(e) {
+                const libraryId = e.target.value;
+                if (libraryId) {
+                    window.currentLibraryId = libraryId;
+                    window.contentOffset = 0;
+                    document.getElementById('searchContent').value = '';
+                    loadContentForCreate(libraryId);
+                } else {
+                    document.getElementById('newContentItem').innerHTML = '<option value="">Select a library first</option>';
+                }
+            });
+            
+            document.getElementById('newContentItem').addEventListener('change', function(e) {
+                if (e.target.value === '__LOAD_MORE__') {
+                    loadMoreContent();
+                    e.target.value = '';
+                    return;
+                }
+                
+                const contentSelect = e.target;
+                const selectedOption = contentSelect.selectedOptions[0];
+                const contentType = selectedOption ? selectedOption.dataset.type : '';
+                
+                if (contentType === 'Series') {
+                    window.currentSeriesId = contentSelect.value;
+                    window.seasonsOffset = 0;
+                    document.getElementById('searchSeason').value = '';
+                    document.getElementById('searchEpisode').value = '';
+                    document.getElementById('seriesControls').style.display = 'block';
+                    loadSeasonsForCreate(contentSelect.value);
+                } else {
+                    document.getElementById('seriesControls').style.display = 'none';
+                }
+            });
+            
+            document.getElementById('newSeason').addEventListener('change', function(e) {
+                if (e.target.value === '__LOAD_MORE__') {
+                    loadMoreSeasons();
+                    e.target.value = '';
+                    return;
+                }
+                
+                const seasonId = e.target.value;
+                const seriesId = document.getElementById('newContentItem').value;
+                if (seasonId && seriesId) {
+                    window.currentSeasonId = seasonId;
+                    window.episodesOffset = 0;
+                    document.getElementById('searchEpisode').value = '';
+                    loadEpisodesForCreate(seriesId, seasonId);
+                }
+            });
+            
+            document.getElementById('newEpisode').addEventListener('change', function(e) {
+                if (e.target.value === '__LOAD_MORE__') {
+                    loadMoreEpisodes();
+                    e.target.value = '';
+                }
+            });
+            
+            document.getElementById('searchContent').addEventListener('input', function(e) {
+                filterDropdown(document.getElementById('newContentItem'), e.target.value);
+            });
+            
+            document.getElementById('searchSeason').addEventListener('input', function(e) {
+                filterDropdown(document.getElementById('newSeason'), e.target.value);
+            });
+            
+            document.getElementById('searchEpisode').addEventListener('input', function(e) {
+                filterDropdown(document.getElementById('newEpisode'), e.target.value);
+            });
+        });
+        
+        async function showCreatePartyModal() {
+            const adminPassword = prompt('Enter admin password to create a party:');
+            if (!adminPassword) {
+                return;
+            }
+            
+            // Verify admin password by attempting to create a test request
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/parties/verify-admin`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminPassword: adminPassword })
+                });
+                
+                if (!response.ok) {
+                    alert('Invalid admin password');
+                    return;
+                }
+            } catch (err) {
+                alert('Error verifying password: ' + err.message);
+                return;
+            }
+            
+            const modal = document.getElementById('createPartyModal');
+            modal.style.display = 'flex';
+            
+            const embyServerUrl = document.getElementById('serverUrl').value.trim();
+            if (!embyServerUrl) {
+                alert('Please set Emby server URL first');
+                modal.style.display = 'none';
+                return;
+            }
+            
+            // Store password temporarily for party creation
+            modal.dataset.verifiedPassword = adminPassword;
+            
+            await loadLibrariesForCreate(embyServerUrl);
+            await loadUsersForCreate(embyServerUrl);
+        }
+        
+        function hideCreatePartyModal() {
+            const modal = document.getElementById('createPartyModal');
+            modal.style.display = 'none';
+            delete modal.dataset.verifiedPassword;
+            document.getElementById('newIsActive').checked = true;
+            document.getElementById('newMaxParticipants').value = 50;
+            document.getElementById('newPartyPassword').value = '';
+            document.getElementById('newMasterUser').value = '';
+            document.getElementById('newAllowedUsers').selectedIndex = -1;
+            document.getElementById('newWaitingRoom').checked = false;
+            document.getElementById('newAutoStart').checked = false;
+            document.getElementById('newMinReady').value = 1;
+            document.getElementById('newPauseControl').value = 'Anyone';
+            document.getElementById('newHostOnlySeek').checked = false;
+            document.getElementById('newLockSeekAhead').checked = false;
+            document.getElementById('newSyncTolerance').value = 10;
+            document.getElementById('newMaxBuffer').value = 30;
+            document.getElementById('newAutoKick').checked = false;
+            document.getElementById('newInactiveTimeout').value = 15;
+            document.getElementById('seriesControls').style.display = 'none';
+        }
+        
+        async function loadLibrariesForCreate(serverUrl) {
+            try {
+                const webServerUrl = window.location.origin;
+                const response = await fetch(`${webServerUrl}/api/emby/Library/MediaFolders`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+                const libraries = data.Items || [];
+                
+                const sourceSelect = document.getElementById('newSourceLibrary');
+                
+                sourceSelect.innerHTML = '<option value="">-- Select library --</option>';
+                
+                libraries.forEach(lib => {
+                    const sourceOption = document.createElement('option');
+                    sourceOption.value = lib.Id;
+                    sourceOption.dataset.name = lib.Name;
+                    sourceOption.dataset.path = lib.Locations && lib.Locations.length > 0 ? lib.Locations[0] : '';
+                    sourceOption.textContent = lib.Name;
+                    sourceSelect.appendChild(sourceOption);
+                });
+            } catch (err) {
+                console.error('Error loading libraries:', err);
+            }
+        }
+        
+        async function loadUsersForCreate(serverUrl) {
+            try {
+                const webServerUrl = window.location.origin;
+                const response = await fetch(`${webServerUrl}/api/emby/Users`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const users = await response.json();
+                
+                const masterSelect = document.getElementById('newMasterUser');
+                const allowedSelect = document.getElementById('newAllowedUsers');
+                
+                masterSelect.innerHTML = '<option value="">-- Select master user --</option>';
+                allowedSelect.innerHTML = '';
+                
+                users.forEach(user => {
+                    const masterOption = document.createElement('option');
+                    masterOption.value = user.Id;
+                    masterOption.textContent = user.Name;
+                    masterSelect.appendChild(masterOption);
+                    
+                    const allowedOption = masterOption.cloneNode(true);
+                    allowedSelect.appendChild(allowedOption);
+                });
+            } catch (err) {
+                console.error('Error loading users:', err);
+            }
+        }
+        
+        async function loadContentForCreate(libraryId) {
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${libraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=0&Limit=100`);
+                const data = await response.json();
+                const items = data.Items || [];
+                const totalCount = data.TotalRecordCount || items.length;
+                
+                const select = document.getElementById('newContentItem');
+                select.innerHTML = '<option value="">-- Select content --</option>';
+                
+                items.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.Id;
+                    option.dataset.type = item.Type;
+                    option.dataset.name = item.Name;
+                    const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
+                    const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
+                    option.textContent = `${item.Name}${year}${type}`;
+                    select.appendChild(option);
+                });
+                
+                window.contentOffset = items.length;
+                
+                if (window.contentOffset < totalCount) {
+                    const loadMoreOption = document.createElement('option');
+                    loadMoreOption.value = '__LOAD_MORE__';
+                    loadMoreOption.textContent = `--- Load More (${window.contentOffset} of ${totalCount}) ---`;
+                    loadMoreOption.className = 'load-more-option';
+                    select.appendChild(loadMoreOption);
+                }
+            } catch (err) {
+                console.error('Error loading content:', err);
+            }
+        }
+        
+        async function loadSeasonsForCreate(seriesId) {
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=0&Limit=100`);
+                const data = await response.json();
+                const seasons = data.Items || [];
+                const totalCount = data.TotalRecordCount || seasons.length;
+                
+                const select = document.getElementById('newSeason');
+                select.innerHTML = '<option value="">-- Select season --</option>';
+                
+                seasons.forEach(season => {
+                    const option = document.createElement('option');
+                    option.value = season.Id;
+                    const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
+                    option.textContent = `${season.Name || 'Season' + seasonNum}`;
+                    select.appendChild(option);
+                });
+                
+                window.seasonsOffset = seasons.length;
+                
+                if (window.seasonsOffset < totalCount) {
+                    const loadMoreOption = document.createElement('option');
+                    loadMoreOption.value = '__LOAD_MORE__';
+                    loadMoreOption.textContent = `--- Load More (${window.seasonsOffset} of ${totalCount}) ---`;
+                    loadMoreOption.className = 'load-more-option';
+                    select.appendChild(loadMoreOption);
+                }
+            } catch (err) {
+                console.error('Error loading seasons:', err);
+            }
+        }
+        
+        async function loadEpisodesForCreate(seriesId, seasonId) {
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${seasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=0&Limit=100`);
+                const data = await response.json();
+                const episodes = data.Items || [];
+                const totalCount = data.TotalRecordCount || episodes.length;
+                
+                const select = document.getElementById('newEpisode');
+                select.innerHTML = '<option value="">-- Select episode --</option>';
+                
+                episodes.forEach(episode => {
+                    const option = document.createElement('option');
+                    option.value = episode.Id;
+                    option.dataset.name = episode.Name;
+                    const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
+                    const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
+                    option.textContent = `${seasonNum}${epNum} - ${episode.Name}`;
+                    select.appendChild(option);
+                });
+                
+                window.episodesOffset = episodes.length;
+                
+                if (window.episodesOffset < totalCount) {
+                    const loadMoreOption = document.createElement('option');
+                    loadMoreOption.value = '__LOAD_MORE__';
+                    loadMoreOption.textContent = `--- Load More (${window.episodesOffset} of ${totalCount}) ---`;
+                    loadMoreOption.className = 'load-more-option';
+                    select.appendChild(loadMoreOption);
+                }
+            } catch (err) {
+                console.error('Error loading episodes:', err);
+            }
+        }
+        
+        async function loadMoreContent() {
+            if (!window.currentLibraryId) return;
+            
+            const select = document.getElementById('newContentItem');
+            const loadMoreOption = select.querySelector('.load-more-option');
+            if (loadMoreOption) {
+                loadMoreOption.remove();
+            }
+            
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${window.currentLibraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=${window.contentOffset}&Limit=100`);
+                const data = await response.json();
+                const items = data.Items || [];
+                const totalCount = data.TotalRecordCount || items.length;
+                
+                items.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.Id;
+                    option.dataset.type = item.Type;
+                    option.dataset.name = item.Name;
+                    const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
+                    const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
+                    option.textContent = `${item.Name}${year}${type}`;
+                    select.appendChild(option);
+                });
+                
+                window.contentOffset += items.length;
+                
+                if (window.contentOffset < totalCount) {
+                    const newLoadMoreOption = document.createElement('option');
+                    newLoadMoreOption.value = '__LOAD_MORE__';
+                    newLoadMoreOption.textContent = `--- Load More (${window.contentOffset} of ${totalCount}) ---`;
+                    newLoadMoreOption.className = 'load-more-option';
+                    select.appendChild(newLoadMoreOption);
+                }
+            } catch (err) {
+                console.error('Error loading more content:', err);
+            }
+        }
+        
+        async function loadMoreSeasons() {
+            if (!window.currentSeriesId) return;
+            
+            const select = document.getElementById('newSeason');
+            const loadMoreOption = select.querySelector('.load-more-option');
+            if (loadMoreOption) {
+                loadMoreOption.remove();
+            }
+            
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${window.currentSeriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=${window.seasonsOffset}&Limit=100`);
+                const data = await response.json();
+                const seasons = data.Items || [];
+                const totalCount = data.TotalRecordCount || seasons.length;
+                
+                seasons.forEach(season => {
+                    const option = document.createElement('option');
+                    option.value = season.Id;
+                    const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
+                    option.textContent = `${season.Name || 'Season' + seasonNum}`;
+                    select.appendChild(option);
+                });
+                
+                window.seasonsOffset += seasons.length;
+                
+                if (window.seasonsOffset < totalCount) {
+                    const newLoadMoreOption = document.createElement('option');
+                    newLoadMoreOption.value = '__LOAD_MORE__';
+                    newLoadMoreOption.textContent = `--- Load More (${window.seasonsOffset} of ${totalCount}) ---`;
+                    newLoadMoreOption.className = 'load-more-option';
+                    select.appendChild(newLoadMoreOption);
+                }
+            } catch (err) {
+                console.error('Error loading more seasons:', err);
+            }
+        }
+        
+        async function loadMoreEpisodes() {
+            if (!window.currentSeasonId) return;
+            
+            const seriesId = document.getElementById('newContentItem').value;
+            const select = document.getElementById('newEpisode');
+            const loadMoreOption = select.querySelector('.load-more-option');
+            if (loadMoreOption) {
+                loadMoreOption.remove();
+            }
+            
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${window.currentSeasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=${window.episodesOffset}&Limit=100`);
+                const data = await response.json();
+                const episodes = data.Items || [];
+                const totalCount = data.TotalRecordCount || episodes.length;
+                
+                episodes.forEach(episode => {
+                    const option = document.createElement('option');
+                    option.value = episode.Id;
+                    option.dataset.name = episode.Name;
+                    const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
+                    const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
+                    option.textContent = `${seasonNum}${epNum} - ${episode.Name}`;
+                    select.appendChild(option);
+                });
+                
+                window.episodesOffset += episodes.length;
+                
+                if (window.episodesOffset < totalCount) {
+                    const newLoadMoreOption = document.createElement('option');
+                    newLoadMoreOption.value = '__LOAD_MORE__';
+                    newLoadMoreOption.textContent = `--- Load More (${window.episodesOffset} of ${totalCount}) ---`;
+                    newLoadMoreOption.className = 'load-more-option';
+                    select.appendChild(newLoadMoreOption);
+                }
+            } catch (err) {
+                console.error('Error loading more episodes:', err);
+            }
+        }
+        
+        function filterDropdown(select, searchQuery) {
+            const query = searchQuery.toLowerCase().trim();
+            const options = Array.from(select.options);
+            
+            options.forEach(option => {
+                if (option.value === '' || option.value === '__LOAD_MORE__') {
+                    option.style.display = '';
+                    return;
+                }
+                
+                const text = option.textContent.toLowerCase();
+                if (query === '' || text.includes(query)) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+        }
+        
+        async function createParty() {
+            const embyServerUrl = document.getElementById('serverUrl').value.trim();
+            const webServerUrl = window.location.origin;
+            
+            const sourceLibraryId = document.getElementById('newSourceLibrary').value;
+            
+            const contentSelect = document.getElementById('newContentItem');
+            const contentId = contentSelect.value;
+            const contentOption = contentSelect.selectedOptions[0];
+            const contentType = contentOption ? contentOption.dataset.type : '';
+            const contentName = contentOption ? contentOption.dataset.name : '';
+            
+            const maxParticipants = parseInt(document.getElementById('newMaxParticipants').value);
+            const partyPassword = document.getElementById('newPartyPassword').value.trim();
+            const modal = document.getElementById('createPartyModal');
+            const adminPassword = modal.dataset.verifiedPassword;
+            const masterUserId = document.getElementById('newMasterUser').value;
+            
+            if (!sourceLibraryId) {
+                alert('Please select a source library');
+                return;
+            }
+            
+            if (!contentId) {
+                alert('Please select content to watch');
+                return;
+            }
+            
+            if (!masterUserId) {
+                alert('Please select a master user');
+                return;
+            }
+            
+            // Get configured STRM target library from server
+            let targetLibraryId, targetLibraryName;
+            try {
+                const configResponse = await fetch(`${webServerUrl}/api/config/strm-library`);
+                const configData = await configResponse.json();
+                targetLibraryId = configData.targetLibraryId;
+                targetLibraryName = configData.targetLibraryName;
+                
+                if (!targetLibraryId || !targetLibraryName) {
+                    alert('STRM target library not configured in plugin settings. Please configure it first.');
+                    return;
+                }
+            } catch (err) {
+                console.error('Error getting STRM library config:', err);
+                alert('Failed to get STRM library configuration from server');
+                return;
+            }
+            
+            let finalItemId = contentId;
+            let finalItemName = contentName;
+            let finalItemType = contentType;
+            let seriesId = null;
+            let seasonId = null;
+            
+            if (contentType === 'Series') {
+                const episodeSelect = document.getElementById('newEpisode');
+                const episodeId = episodeSelect.value;
+                const episodeOption = episodeSelect.selectedOptions[0];
+                
+                if (!episodeId) {
+                    alert('Please select an episode for TV shows');
+                    return;
+                }
+                
+                finalItemId = episodeId;
+                finalItemType = 'Episode';
+                finalItemName = episodeOption ? episodeOption.dataset.name : '';
+                seriesId = contentId;
+                seasonId = document.getElementById('newSeason').value;
+            }
+            
+            const allowedUsersSelect = document.getElementById('newAllowedUsers');
+            const allowedUserIds = Array.from(allowedUsersSelect.selectedOptions).map(opt => opt.value);
+            
+            try {
+                const partyData = {
+                    libraryId: sourceLibraryId,
+                    itemId: finalItemId,
+                    itemName: finalItemName,
+                    itemType: finalItemType,
+                    seriesId: seriesId,
+                    seasonId: seasonId,
+                    collectionName: targetLibraryName,
+                    targetLibraryId: targetLibraryId,
+                    isActive: document.getElementById('newIsActive').checked,
+                    maxParticipants: maxParticipants,
+                    allowedUserIds: allowedUserIds,
+                    masterUserId: masterUserId,
+                    password: partyPassword || null,
+                    isWaitingRoom: document.getElementById('newWaitingRoom').checked,
+                    autoStartWhenReady: document.getElementById('newAutoStart').checked,
+                    minReadyCount: parseInt(document.getElementById('newMinReady').value),
+                    pauseControl: document.getElementById('newPauseControl').value,
+                    hostOnlySeek: document.getElementById('newHostOnlySeek').checked,
+                    lockSeekAhead: document.getElementById('newLockSeekAhead').checked,
+                    syncToleranceSeconds: parseInt(document.getElementById('newSyncTolerance').value),
+                    maxBufferThresholdSeconds: parseInt(document.getElementById('newMaxBuffer').value),
+                    autoKickInactiveMinutes: document.getElementById('newAutoKick').checked,
+                    inactiveTimeoutMinutes: parseInt(document.getElementById('newInactiveTimeout').value),
+                    enableNetworkLatencyCompensation: document.getElementById('newEnableNetworkLatencyCompensation').checked,
+                    networkLatencyMeasurementIntervalSeconds: parseInt(document.getElementById('newNetworkLatencyMeasurementIntervalSeconds').value),
+                    autoAdjustForLatency: document.getElementById('newAutoAdjustForLatency').checked,
+                    maxLatencyCompensationMs: parseInt(document.getElementById('newMaxLatencyCompensationMs').value),
+                    adminPassword: adminPassword
+                };
+                
+                const response = await fetch(`${webServerUrl}/api/parties/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(partyData)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create party');
+                }
+                
+                const result = await response.json();
+                alert('Party created successfully!');
+                hideCreatePartyModal();
+                loadParties();
+            } catch (err) {
+                alert(`Error creating party: ${err.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
