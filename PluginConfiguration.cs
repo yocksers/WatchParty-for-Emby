@@ -8,24 +8,91 @@ namespace WatchPartyForEmby
 {
     public static class PasswordHelper
     {
+        private const int SaltSize = 16;
+        private const int HashSize = 32;
+        private const int Iterations = 10000;
+
         public static string HashPassword(string password)
         {
             if (string.IsNullOrEmpty(password)) return string.Empty;
             
-            using (var sha256 = SHA256.Create())
+            var salt = new byte[SaltSize];
+            RandomNumberGenerator.Fill(salt);
+            
+            using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations))
             {
-                var bytes = Encoding.UTF8.GetBytes(password);
-                var hash = sha256.ComputeHash(bytes);
-                return Convert.ToBase64String(hash);
+                var hash = pbkdf2.GetBytes(HashSize);
+                var hashBytes = new byte[SaltSize + HashSize];
+                Array.Copy(salt, 0, hashBytes, 0, SaltSize);
+                Array.Copy(hash, 0, hashBytes, SaltSize, HashSize);
+                return Convert.ToBase64String(hashBytes);
             }
         }
         
         public static bool VerifyPassword(string password, string hash)
         {
             if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(hash)) return false;
-            var passwordHash = HashPassword(password);
-            return passwordHash == hash;
+            
+            try
+            {
+                var hashBytes = Convert.FromBase64String(hash);
+                
+                // Check if it's a new PBKDF2 hash (salt + hash = 48 bytes)
+                if (hashBytes.Length == SaltSize + HashSize)
+                {
+                    var salt = new byte[SaltSize];
+                    Array.Copy(hashBytes, 0, salt, 0, SaltSize);
+                    
+                    using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations))
+                    {
+                        var testHash = pbkdf2.GetBytes(HashSize);
+                        for (int i = 0; i < HashSize; i++)
+                        {
+                            if (hashBytes[i + SaltSize] != testHash[i])
+                                return false;
+                        }
+                        return true;
+                    }
+                }
+                // Fall back to old SHA-256 verification for backward compatibility
+                else if (hashBytes.Length == 32)
+                {
+                    using (var sha256 = SHA256.Create())
+                    {
+                        var bytes = Encoding.UTF8.GetBytes(password);
+                        var testHash = sha256.ComputeHash(bytes);
+                        var testHashBase64 = Convert.ToBase64String(testHash);
+                        return testHashBase64 == hash;
+                    }
+                }
+                
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
+    }
+
+    public class SessionToken
+    {
+        public string Token { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public string IpAddress { get; set; }
+        
+        public bool IsValid()
+        {
+            return DateTime.UtcNow < ExpiresAt;
+        }
+    }
+
+    public class RateLimitEntry
+    {
+        public int RequestCount { get; set; }
+        public DateTime WindowStart { get; set; }
+        public DateTime? BlockedUntil { get; set; }
     }
 
     public class PartyParticipant
@@ -135,11 +202,16 @@ namespace WatchPartyForEmby
 
         public bool EnableExternalWebServer { get; set; } = true;
         public int ExternalWebServerPort { get; set; } = 8097;
+        public string ListenAddress { get; set; } = "localhost";
+        public string AllowedCorsOrigins { get; set; } = "";
         public string AdminPasswordHash { get; set; }
         public string EmbyApiKey { get; set; }
         public string StrmTargetLibraryId { get; set; }
         public string StrmTargetLibraryName { get; set; }
         public string ExternalServerUrl { get; set; }
+        public int SessionExpirationMinutes { get; set; } = 60;
+        public int RateLimitRequestsPerMinute { get; set; } = 60;
+        public int RateLimitBlockDurationMinutes { get; set; } = 15;
 
         public PluginConfiguration()
         {
@@ -160,8 +232,13 @@ namespace WatchPartyForEmby
             WatchPartyStrmPath = string.Empty;
             EnableExternalWebServer = true;
             ExternalWebServerPort = 8097;
+            ListenAddress = "localhost";
+            AllowedCorsOrigins = "";
             AdminPasswordHash = string.Empty;
             ExternalServerUrl = string.Empty;
+            SessionExpirationMinutes = 60;
+            RateLimitRequestsPerMinute = 60;
+            RateLimitBlockDurationMinutes = 15;
         }
     }
 }

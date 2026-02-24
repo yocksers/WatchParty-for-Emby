@@ -1268,9 +1268,9 @@ namespace WatchPartyForEmby
                     
                     if (isMaster)
                     {
+                        // Update in-memory state only - no need to persist on every progress event
                         party.CurrentPositionTicks = e.PlaybackPositionTicks ?? 0;
                         party.IsPlaying = !e.IsPaused;
-                        _plugin.SaveConfiguration();
                         
                         _logger.Debug($"[Watch Party] Master user updated party {party.Id} position to {party.CurrentPositionTicks} ticks, Playing: {party.IsPlaying}");
                     }

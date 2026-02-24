@@ -320,6 +320,46 @@
                         </div>
 
                         <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="listenAddress">Listen Address</label>
+                            <input is="emby-input" type="text" id="listenAddress" placeholder="localhost" />
+                            <div class="fieldDescription">
+                                Network address to bind to. Use "localhost" (default, most secure) or "*" to allow external connections. Requires restart.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="allowedCorsOrigins">Allowed CORS Origins</label>
+                            <input is="emby-input" type="text" id="allowedCorsOrigins" placeholder="http://localhost:8097,http://192.168.1.100:8097" />
+                            <div class="fieldDescription">
+                                Comma-separated list of allowed origins for CORS. Use "*" for any origin (not recommended) or leave blank for localhost only.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="sessionExpirationMinutes">Session Expiration (minutes)</label>
+                            <input is="emby-input" type="number" id="sessionExpirationMinutes" min="5" max="1440" step="5" value="60" />
+                            <div class="fieldDescription">
+                                How long sessions remain valid after login (default: 60). Range: 5-1440 minutes.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="rateLimitRequestsPerMinute">Rate Limit (requests/minute)</label>
+                            <input is="emby-input" type="number" id="rateLimitRequestsPerMinute" min="10" max="1000" step="10" value="60" />
+                            <div class="fieldDescription">
+                                Maximum requests per IP address per minute (default: 60). Set to 0 to disable rate limiting.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="rateLimitBlockDurationMinutes">Rate Limit Block Duration (minutes)</label>
+                            <input is="emby-input" type="number" id="rateLimitBlockDurationMinutes" min="1" max="1440" step="5" value="15" />
+                            <div class="fieldDescription">
+                                How long to block an IP after exceeding rate limit (default: 15). Range: 1-1440 minutes.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
                             <label class="inputLabel inputLabelUnfocused" for="adminPassword">Admin Password</label>
                             <input is="emby-input" type="password" id="adminPassword" autocomplete="new-password" />
                             <div class="fieldDescription">

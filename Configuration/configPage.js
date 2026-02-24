@@ -619,6 +619,11 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 view.querySelector('#enableDebugLogging').checked = config.EnableDebugLogging || false;
                 view.querySelector('#enableExternalWebServer').checked = config.EnableExternalWebServer !== false;
                 view.querySelector('#externalWebServerPort').value = config.ExternalWebServerPort || 8097;
+                view.querySelector('#listenAddress').value = config.ListenAddress || 'localhost';
+                view.querySelector('#allowedCorsOrigins').value = config.AllowedCorsOrigins || '';
+                view.querySelector('#sessionExpirationMinutes').value = config.SessionExpirationMinutes || 60;
+                view.querySelector('#rateLimitRequestsPerMinute').value = config.RateLimitRequestsPerMinute || 60;
+                view.querySelector('#rateLimitBlockDurationMinutes').value = config.RateLimitBlockDurationMinutes || 15;
                 view.querySelector('#externalServerUrl').value = config.ExternalServerUrl || '';
                 view.querySelector('#embyApiKey').value = config.EmbyApiKey || '';
                 
@@ -934,6 +939,11 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 config.EnableDebugLogging = view.querySelector('#enableDebugLogging').checked;
                 config.EnableExternalWebServer = view.querySelector('#enableExternalWebServer').checked;
                 config.ExternalWebServerPort = parseInt(view.querySelector('#externalWebServerPort').value) || 8097;
+                config.ListenAddress = view.querySelector('#listenAddress').value.trim() || 'localhost';
+                config.AllowedCorsOrigins = view.querySelector('#allowedCorsOrigins').value.trim();
+                config.SessionExpirationMinutes = parseInt(view.querySelector('#sessionExpirationMinutes').value) || 60;
+                config.RateLimitRequestsPerMinute = parseInt(view.querySelector('#rateLimitRequestsPerMinute').value) || 60;
+                config.RateLimitBlockDurationMinutes = parseInt(view.querySelector('#rateLimitBlockDurationMinutes').value) || 15;
                 config.ExternalServerUrl = view.querySelector('#externalServerUrl').value.trim();
                 config.EmbyApiKey = view.querySelector('#embyApiKey').value.trim();
                 

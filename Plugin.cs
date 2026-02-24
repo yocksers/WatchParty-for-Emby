@@ -18,6 +18,7 @@ namespace WatchPartyForEmby
         private readonly IJsonSerializer _jsonSerializer;
         private ExternalWebServer _externalWebServer;
         private int _lastPort = 0;
+        private string _lastListenAddress = "";
         private bool _lastEnabled = false;
         public static string ExternalWebServerStatus { get; private set; } = "Not Enabled";
 
@@ -103,9 +104,10 @@ namespace WatchPartyForEmby
         private void OnConfigurationUpdated(object sender, EventArgs e)
         {
             var currentPort = Configuration.ExternalWebServerPort;
+            var currentListenAddress = Configuration.ListenAddress ?? "localhost";
             var currentEnabled = Configuration.EnableExternalWebServer;
             
-            if (_lastPort != currentPort || _lastEnabled != currentEnabled)
+            if (_lastPort != currentPort || _lastListenAddress != currentListenAddress || _lastEnabled != currentEnabled)
             {
                 _logger.Info("[Watch Party] Web server configuration changed, restarting...");
                 RestartWebServer();
@@ -116,11 +118,13 @@ namespace WatchPartyForEmby
         {
             if (Configuration.EnableExternalWebServer)
             {
-                _externalWebServer = new ExternalWebServer(_logger, _jsonSerializer, Configuration.ExternalWebServerPort);
+                var listenAddress = string.IsNullOrEmpty(Configuration.ListenAddress) ? "localhost" : Configuration.ListenAddress;
+                _externalWebServer = new ExternalWebServer(_logger, _jsonSerializer, Configuration.ExternalWebServerPort, listenAddress);
                 ExternalWebServerStatus = _externalWebServer.Start();
                 _logger.Info($"[Watch Party] External web server status: {ExternalWebServerStatus}");
                 
                 _lastPort = Configuration.ExternalWebServerPort;
+                _lastListenAddress = listenAddress;
                 _lastEnabled = Configuration.EnableExternalWebServer;
             }
             else
@@ -129,6 +133,7 @@ namespace WatchPartyForEmby
                 _logger.Info("[Watch Party] External web server is disabled in configuration");
                 
                 _lastPort = 0;
+                _lastListenAddress = "";
                 _lastEnabled = false;
             }
         }

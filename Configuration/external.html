@@ -393,6 +393,36 @@
         </div>
     </div>
     
+    <!-- Password Input Modal -->
+    <div id="passwordModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1001; align-items: center; justify-content: center;">
+        <div style="background: #1a1a1a; padding: 30px; border-radius: 8px; max-width: 400px; width: 90%;">
+            <h2 id="passwordModalTitle" style="margin-top: 0;">Enter Password</h2>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;" id="passwordModalLabel">Password:</label>
+                <input type="password" id="passwordModalInput" placeholder="Enter password" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="passwordModalOk" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">OK</button>
+                <button id="passwordModalCancel" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Username Input Modal -->
+    <div id="usernameModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1001; align-items: center; justify-content: center;">
+        <div style="background: #1a1a1a; padding: 30px; border-radius: 8px; max-width: 400px; width: 90%;">
+            <h2 style="margin-top: 0;">Enter Your Name</h2>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Name for chat:</label>
+                <input type="text" id="usernameModalInput" placeholder="Enter your name" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="usernameModalOk" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">OK</button>
+                <button id="usernameModalCancel" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         console.log('External Dashboard loaded');
         
@@ -494,21 +524,108 @@
             return div.innerHTML;
         }
         
-        function joinParty(partyId, requiresPassword, partyName) {
+        function showPasswordModal(title, label) {
+            return new Promise((resolve, reject) => {
+                const modal = document.getElementById('passwordModal');
+                const titleElement = document.getElementById('passwordModalTitle');
+                const labelElement = document.getElementById('passwordModalLabel');
+                const input = document.getElementById('passwordModalInput');
+                const okBtn = document.getElementById('passwordModalOk');
+                const cancelBtn = document.getElementById('passwordModalCancel');
+                
+                titleElement.textContent = title;
+                labelElement.textContent = label;
+                input.value = '';
+                modal.style.display = 'flex';
+                input.focus();
+                
+                const handleOk = () => {
+                    const value = input.value;
+                    cleanup();
+                    resolve(value);
+                };
+                
+                const handleCancel = () => {
+                    cleanup();
+                    resolve(null);
+                };
+                
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter') handleOk();
+                    if (e.key === 'Escape') handleCancel();
+                };
+                
+                const cleanup = () => {
+                    modal.style.display = 'none';
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    input.removeEventListener('keypress', handleKeyPress);
+                };
+                
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+                input.addEventListener('keypress', handleKeyPress);
+            });
+        }
+        
+        function showUsernameModal() {
+            return new Promise((resolve, reject) => {
+                const modal = document.getElementById('usernameModal');
+                const input = document.getElementById('usernameModalInput');
+                const okBtn = document.getElementById('usernameModalOk');
+                const cancelBtn = document.getElementById('usernameModalCancel');
+                
+                input.value = '';
+                modal.style.display = 'flex';
+                input.focus();
+                
+                const handleOk = () => {
+                    const value = input.value.trim();
+                    cleanup();
+                    resolve(value);
+                };
+                
+                const handleCancel = () => {
+                    cleanup();
+                    resolve(null);
+                };
+                
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter') handleOk();
+                    if (e.key === 'Escape') handleCancel();
+                };
+                
+                const cleanup = () => {
+                    modal.style.display = 'none';
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    input.removeEventListener('keypress', handleKeyPress);
+                };
+                
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+                input.addEventListener('keypress', handleKeyPress);
+            });
+        }
+        
+        async function joinParty(partyId, requiresPassword, partyName) {
             if (requiresPassword) {
-                const password = prompt(`Enter password for "${partyName}":`);
+                const password = await showPasswordModal(
+                    'Party Password Required',
+                    `Enter password for "${partyName}":`
+                );
                 if (!password) return;
                 
                 sessionStorage.setItem(`party_${partyId}_password`, password);
             }
             
-            const username = prompt('Enter your name for the chat:');
-            if (!username || !username.trim()) {
+            const username = await showUsernameModal();
+            if (!username) {
                 alert('Username is required to join the chat!');
                 return;
             }
             
-            const chatUrl = `chat.html?partyId=${encodeURIComponent(partyId)}&username=${encodeURIComponent(username.trim())}&partyName=${encodeURIComponent(partyName)}`;
+            const chatUrl = `chat.html?partyId=${encodeURIComponent(partyId)}&username=${encodeURIComponent(username)}&partyName=${encodeURIComponent(partyName)}`;
             window.open(chatUrl, `chat_${partyId}`, 'width=500,height=700,resizable=yes,scrollbars=yes');
         }
         
@@ -558,20 +675,41 @@
                 return;
             }
             
-            const adminPassword = prompt('Enter admin password to confirm deletion:');
+            const adminPassword = await showPasswordModal(
+                'Admin Authentication Required',
+                'Enter admin password to confirm deletion:'
+            );
             if (!adminPassword) {
                 return;
             }
             
             const webServerUrl = window.location.origin;
             
+            // Authenticate to get session token
             try {
-                const response = await fetch(`${webServerUrl}/api/parties/delete`, {
+                const loginResponse = await fetch(`${webServerUrl}/api/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminPassword: adminPassword })
+                });
+                
+                if (!loginResponse.ok) {
+                    alert('Invalid admin password');
+                    return;
+                }
+                
+                const loginData = await loginResponse.json();
+                const sessionToken = loginData.token;
+                
+                // Now delete the party with session token
+                const response = await fetch(`${webServerUrl}/api/parties/delete`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Session-Token': sessionToken
+                    },
                     body: JSON.stringify({
-                        partyId: partyId,
-                        adminPassword: adminPassword
+                        partyId: partyId
                     })
                 });
                 
@@ -675,7 +813,7 @@
         window.addEventListener('DOMContentLoaded', async function() {
             console.log('DOM loaded, setting up event listeners');
             
-            // Fetch the configured external server URL
+            // Fetch the configured external server URL (public endpoint - no auth required)
             try {
                 const webServerUrl = window.location.origin;
                 const response = await fetch(`${webServerUrl}/api/config/external-url`);
@@ -814,15 +952,18 @@
         });
         
         async function showCreatePartyModal() {
-            const adminPassword = prompt('Enter admin password to create a party:');
+            const adminPassword = await showPasswordModal(
+                'Admin Authentication Required',
+                'Enter admin password to create a party:'
+            );
             if (!adminPassword) {
                 return;
             }
             
-            // Verify admin password by attempting to create a test request
+            // Authenticate and get session token
             const webServerUrl = window.location.origin;
             try {
-                const response = await fetch(`${webServerUrl}/api/parties/verify-admin`, {
+                const response = await fetch(`${webServerUrl}/api/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ adminPassword: adminPassword })
@@ -832,6 +973,16 @@
                     alert('Invalid admin password');
                     return;
                 }
+                
+                const data = await response.json();
+                const sessionToken = data.token;
+                if (!sessionToken) {
+                    alert('Failed to obtain session token');
+                    return;
+                }
+                
+                // Store session token for subsequent requests
+                sessionStorage.setItem('watchPartySessionToken', sessionToken);
             } catch (err) {
                 alert('Error verifying password: ' + err.message);
                 return;
@@ -847,9 +998,6 @@
                 return;
             }
             
-            // Store password temporarily for party creation
-            modal.dataset.verifiedPassword = adminPassword;
-            
             await loadLibrariesForCreate(embyServerUrl);
             await loadUsersForCreate(embyServerUrl);
         }
@@ -857,7 +1005,6 @@
         function hideCreatePartyModal() {
             const modal = document.getElementById('createPartyModal');
             modal.style.display = 'none';
-            delete modal.dataset.verifiedPassword;
             document.getElementById('newIsActive').checked = true;
             document.getElementById('newMaxParticipants').value = 50;
             document.getElementById('newPartyPassword').value = '';
@@ -879,8 +1026,12 @@
         async function loadLibrariesForCreate(serverUrl) {
             try {
                 const webServerUrl = window.location.origin;
+                const sessionToken = sessionStorage.getItem('watchPartySessionToken');
                 const response = await fetch(`${webServerUrl}/api/emby/Library/MediaFolders`, {
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'Accept': 'application/json',
+                        'X-Session-Token': sessionToken
+                    }
                 });
                 const data = await response.json();
                 const libraries = data.Items || [];
@@ -905,8 +1056,12 @@
         async function loadUsersForCreate(serverUrl) {
             try {
                 const webServerUrl = window.location.origin;
+                const sessionToken = sessionStorage.getItem('watchPartySessionToken');
                 const response = await fetch(`${webServerUrl}/api/emby/Users`, {
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'Accept': 'application/json',
+                        'X-Session-Token': sessionToken
+                    }
                 });
                 const users = await response.json();
                 
@@ -932,8 +1087,11 @@
         
         async function loadContentForCreate(libraryId) {
             const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             try {
-                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${libraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=0&Limit=100`);
+                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${libraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=0&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const data = await response.json();
                 const items = data.Items || [];
                 const totalCount = data.TotalRecordCount || items.length;
@@ -968,8 +1126,11 @@
         
         async function loadSeasonsForCreate(seriesId) {
             const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             try {
-                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=0&Limit=100`);
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=0&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const data = await response.json();
                 const seasons = data.Items || [];
                 const totalCount = data.TotalRecordCount || seasons.length;
@@ -1001,8 +1162,11 @@
         
         async function loadEpisodesForCreate(seriesId, seasonId) {
             const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             try {
-                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${seasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=0&Limit=100`);
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${seasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=0&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const data = await response.json();
                 const episodes = data.Items || [];
                 const totalCount = data.TotalRecordCount || episodes.length;
@@ -1044,8 +1208,11 @@
             }
             
             const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             try {
-                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${window.currentLibraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=${window.contentOffset}&Limit=100`);
+                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${window.currentLibraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=${window.contentOffset}&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const data = await response.json();
                 const items = data.Items || [];
                 const totalCount = data.TotalRecordCount || items.length;
@@ -1085,8 +1252,11 @@
             }
             
             const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             try {
-                const response = await fetch(`${webServerUrl}/api/emby/Shows/${window.currentSeriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=${window.seasonsOffset}&Limit=100`);
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${window.currentSeriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=${window.seasonsOffset}&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const data = await response.json();
                 const seasons = data.Items || [];
                 const totalCount = data.TotalRecordCount || seasons.length;
@@ -1124,8 +1294,11 @@
             }
             
             const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             try {
-                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${window.currentSeasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=${window.episodesOffset}&Limit=100`);
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${window.currentSeasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=${window.episodesOffset}&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const data = await response.json();
                 const episodes = data.Items || [];
                 const totalCount = data.TotalRecordCount || episodes.length;
@@ -1187,9 +1360,14 @@
             
             const maxParticipants = parseInt(document.getElementById('newMaxParticipants').value);
             const partyPassword = document.getElementById('newPartyPassword').value.trim();
-            const modal = document.getElementById('createPartyModal');
-            const adminPassword = modal.dataset.verifiedPassword;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             const masterUserId = document.getElementById('newMasterUser').value;
+            
+            if (!sessionToken) {
+                alert('Session expired. Please try again.');
+                hideCreatePartyModal();
+                return;
+            }
             
             if (!sourceLibraryId) {
                 alert('Please select a source library');
@@ -1209,7 +1387,9 @@
             // Get configured STRM target library from server
             let targetLibraryId, targetLibraryName;
             try {
-                const configResponse = await fetch(`${webServerUrl}/api/config/strm-library`);
+                const configResponse = await fetch(`${webServerUrl}/api/config/strm-library`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const configData = await configResponse.json();
                 targetLibraryId = configData.targetLibraryId;
                 targetLibraryName = configData.targetLibraryName;
@@ -1278,13 +1458,15 @@
                     enableNetworkLatencyCompensation: document.getElementById('newEnableNetworkLatencyCompensation').checked,
                     networkLatencyMeasurementIntervalSeconds: parseInt(document.getElementById('newNetworkLatencyMeasurementIntervalSeconds').value),
                     autoAdjustForLatency: document.getElementById('newAutoAdjustForLatency').checked,
-                    maxLatencyCompensationMs: parseInt(document.getElementById('newMaxLatencyCompensationMs').value),
-                    adminPassword: adminPassword
+                    maxLatencyCompensationMs: parseInt(document.getElementById('newMaxLatencyCompensationMs').value)
                 };
                 
                 const response = await fetch(`${webServerUrl}/api/parties/create`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Session-Token': sessionToken
+                    },
                     body: JSON.stringify(partyData)
                 });
                 

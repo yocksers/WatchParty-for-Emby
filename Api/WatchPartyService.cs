@@ -192,9 +192,9 @@ namespace WatchPartyForEmby.Api
 
             foreach (var party in config.WatchParties)
             {
-                if (!string.IsNullOrEmpty(party.Password))
+                if (!string.IsNullOrEmpty(party.PasswordHash))
                 {
-                    if (string.IsNullOrEmpty(request.Password) || request.Password != party.Password)
+                    if (string.IsNullOrEmpty(request.Password) || !PasswordHelper.VerifyPassword(request.Password, party.PasswordHash))
                     {
                         continue;
                     }
