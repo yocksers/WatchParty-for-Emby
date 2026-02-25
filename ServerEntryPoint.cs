@@ -28,11 +28,10 @@ namespace WatchPartyForEmby
         private readonly Dictionary<string, Dictionary<string, bool>> _partySessionPauseState = new Dictionary<string, Dictionary<string, bool>>();
         private readonly Dictionary<string, string> _partyHostSessions = new Dictionary<string, string>();
         private readonly HashSet<string> _trackedPartyIds = new HashSet<string>();
-        private readonly Dictionary<string, Dictionary<string, PartyParticipant>> _partyParticipants = new Dictionary<string, Dictionary<string, PartyParticipant>>();
-        private readonly Dictionary<string, HashSet<string>> _partyReadyUsers = new Dictionary<string, HashSet<string>>();
         private readonly Dictionary<string, Dictionary<string, int>> _partyPauseVotes = new Dictionary<string, Dictionary<string, int>>();
         private readonly Dictionary<string, string> _partyLibraryPathCache = new Dictionary<string, string>();
         private readonly Dictionary<string, string> _partyStrmPathCache = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _strmContentCache = new Dictionary<string, string>();
 
         public ServerEntryPoint(
             ISessionManager sessionManager,
@@ -158,15 +157,15 @@ namespace WatchPartyForEmby
 
         private PartyParticipant GetOrCreateParticipant(string partyId, SessionInfo session)
         {
-            if (!_partyParticipants.ContainsKey(partyId))
+            if (!_plugin.PartyParticipants.ContainsKey(partyId))
             {
-                _partyParticipants[partyId] = new Dictionary<string, PartyParticipant>();
+                _plugin.PartyParticipants[partyId] = new Dictionary<string, PartyParticipant>();
             }
 
-            if (!_partyParticipants[partyId].ContainsKey(session.UserId))
+            if (!_plugin.PartyParticipants[partyId].ContainsKey(session.UserId))
             {
                 var user = session.UserName ?? session.UserId;
-                _partyParticipants[partyId][session.UserId] = new PartyParticipant
+                _plugin.PartyParticipants[partyId][session.UserId] = new PartyParticipant
                 {
                     UserId = session.UserId,
                     UserName = user,
@@ -175,14 +174,14 @@ namespace WatchPartyForEmby
                 _logger.Info($"[Party {partyId}] New participant: {user} ({session.UserId})");
             }
 
-            return _partyParticipants[partyId][session.UserId];
+            return _plugin.PartyParticipants[partyId][session.UserId];
         }
 
         private void UpdateParticipantActivity(string partyId, string userId, long positionTicks, bool isPaused)
         {
-            if (_partyParticipants.ContainsKey(partyId) && _partyParticipants[partyId].ContainsKey(userId))
+            if (_plugin.PartyParticipants.ContainsKey(partyId) && _plugin.PartyParticipants[partyId].ContainsKey(userId))
             {
-                var participant = _partyParticipants[partyId][userId];
+                var participant = _plugin.PartyParticipants[partyId][userId];
                 participant.LastActivityAt = DateTime.UtcNow;
                 participant.CurrentPositionTicks = positionTicks;
                 participant.IsPaused = isPaused;
@@ -191,11 +190,11 @@ namespace WatchPartyForEmby
 
         private void RemoveParticipant(string partyId, string userId)
         {
-            if (_partyParticipants.ContainsKey(partyId) && _partyParticipants[partyId].ContainsKey(userId))
+            if (_plugin.PartyParticipants.ContainsKey(partyId) && _plugin.PartyParticipants[partyId].ContainsKey(userId))
             {
-                var participant = _partyParticipants[partyId][userId];
+                var participant = _plugin.PartyParticipants[partyId][userId];
                 _logger.Info($"[Party {partyId}] Participant left: {participant.UserName}");
-                _partyParticipants[partyId].Remove(userId);
+                _plugin.PartyParticipants[partyId].Remove(userId);
             }
         }
 
@@ -210,9 +209,9 @@ namespace WatchPartyForEmby
                 }
             }
 
-            if (_partyParticipants.ContainsKey(party.Id))
+            if (_plugin.PartyParticipants.ContainsKey(party.Id))
             {
-                var currentCount = _partyParticipants[party.Id].Count;
+                var currentCount = _plugin.PartyParticipants[party.Id].Count;
                 if (currentCount >= party.MaxParticipants)
                 {
                     _logger.Warn($"[Party {party.Id}] Maximum participants ({party.MaxParticipants}) reached");
@@ -225,20 +224,20 @@ namespace WatchPartyForEmby
 
         private void CheckAndRemoveInactiveParticipants(WatchPartyItem party)
         {
-            if (!party.AutoKickInactiveMinutes || !_partyParticipants.ContainsKey(party.Id))
+            if (!party.AutoKickInactiveMinutes || !_plugin.PartyParticipants.ContainsKey(party.Id))
             {
                 return;
             }
 
             var inactiveThreshold = DateTime.UtcNow.AddMinutes(-party.InactiveTimeoutMinutes);
-            var inactiveUsers = _partyParticipants[party.Id]
+            var inactiveUsers = _plugin.PartyParticipants[party.Id]
                 .Where(kvp => kvp.Value.LastActivityAt < inactiveThreshold)
                 .Select(kvp => kvp.Key)
                 .ToList();
 
             foreach (var userId in inactiveUsers)
             {
-                var participant = _partyParticipants[party.Id][userId];
+                var participant = _plugin.PartyParticipants[party.Id][userId];
                 _logger.Info($"[Party {party.Id}] Removing inactive user: {participant.UserName} (inactive for {party.InactiveTimeoutMinutes} minutes)");
                 RemoveParticipant(party.Id, userId);
                 
@@ -255,9 +254,9 @@ namespace WatchPartyForEmby
 
         private List<PartyParticipant> GetParticipants(string partyId)
         {
-            if (_partyParticipants.ContainsKey(partyId))
+            if (_plugin.PartyParticipants.ContainsKey(partyId))
             {
-                return _partyParticipants[partyId].Values.ToList();
+                return _plugin.PartyParticipants[partyId].Values.ToList();
             }
             return new List<PartyParticipant>();
         }
@@ -270,12 +269,12 @@ namespace WatchPartyForEmby
                 return;
             }
 
-            if (!_partyReadyUsers.ContainsKey(party.Id))
+            if (!_plugin.PartyReadyUsers.ContainsKey(party.Id))
             {
-                _partyReadyUsers[party.Id] = new HashSet<string>();
+                _plugin.PartyReadyUsers[party.Id] = new HashSet<string>();
             }
 
-            var readyCount = _partyReadyUsers[party.Id].Count;
+            var readyCount = _plugin.PartyReadyUsers[party.Id].Count;
             
             int expectedUsers;
             if (party.AllowedUserIds != null && party.AllowedUserIds.Count > 0)
@@ -285,7 +284,7 @@ namespace WatchPartyForEmby
             }
             else
             {
-                expectedUsers = _partyParticipants.ContainsKey(party.Id) ? _partyParticipants[party.Id].Count : 0;
+                expectedUsers = _plugin.PartyParticipants.ContainsKey(party.Id) ? _plugin.PartyParticipants[party.Id].Count : 0;
                 _logger.Info($"[Party {party.Id}] Waiting room: {readyCount}/{expectedUsers} participants ready");
             }
 
@@ -327,7 +326,7 @@ namespace WatchPartyForEmby
             var sessions = _sessionManager.Sessions.Where(s => s.NowPlayingItem != null).ToList();
             foreach (var session in sessions)
             {
-                if (_partyParticipants.ContainsKey(party.Id) && _partyParticipants[party.Id].ContainsKey(session.UserId))
+                if (_plugin.PartyParticipants.ContainsKey(party.Id) && _plugin.PartyParticipants[party.Id].ContainsKey(session.UserId))
                 {
                     try
                     {
@@ -382,7 +381,7 @@ namespace WatchPartyForEmby
                 
                 _partyPauseVotes[party.Id][session.UserId] = 1;
                 
-                var totalParticipants = _partyParticipants.ContainsKey(party.Id) ? _partyParticipants[party.Id].Count : 1;
+                var totalParticipants = _plugin.PartyParticipants.ContainsKey(party.Id) ? _plugin.PartyParticipants[party.Id].Count : 1;
                 var pauseVotes = _partyPauseVotes[party.Id].Count;
                 var requiredVotes = (int)Math.Ceiling(totalParticipants / 2.0);
                 
@@ -916,11 +915,11 @@ namespace WatchPartyForEmby
                     {
                         _logger.Info($"[Party {party.Id}] User {e.Session.UserId} started playback - marking as ready");
                         
-                        if (!_partyReadyUsers.ContainsKey(party.Id))
+                        if (!_plugin.PartyReadyUsers.ContainsKey(party.Id))
                         {
-                            _partyReadyUsers[party.Id] = new HashSet<string>();
+                            _plugin.PartyReadyUsers[party.Id] = new HashSet<string>();
                         }
-                        _partyReadyUsers[party.Id].Add(e.Session.UserId);
+                        _plugin.PartyReadyUsers[party.Id].Add(e.Session.UserId);
                         
                         _logger.Info($"[Party {party.Id}] Pausing user in waiting room");
                         await _sessionManager.SendPlaystateCommand(e.Session.Id, e.Session.Id, new PlaystateRequest
@@ -1014,9 +1013,9 @@ namespace WatchPartyForEmby
                             {
                                 _logger.Warn($"[Party {party.Id}] Session {session.Id} is {TimeSpan.FromTicks(positionDifference).TotalSeconds:F1}s behind (exceeds buffer threshold)");
                                 
-                                if (_partyParticipants.ContainsKey(party.Id) && _partyParticipants[party.Id].ContainsKey(session.UserId))
+                                if (_plugin.PartyParticipants.ContainsKey(party.Id) && _plugin.PartyParticipants[party.Id].ContainsKey(session.UserId))
                                 {
-                                    _partyParticipants[party.Id][session.UserId].IsBuffering = true;
+                                    _plugin.PartyParticipants[party.Id][session.UserId].IsBuffering = true;
                                 }
                             }
                             
@@ -1029,9 +1028,9 @@ namespace WatchPartyForEmby
                             {
                                 _logger.Debug($"[Party {party.Id}] Session {session.Id} is in sync (diff: {TimeSpan.FromTicks(positionDifference).TotalSeconds:F1}s)");
                                 
-                                if (_partyParticipants.ContainsKey(party.Id) && _partyParticipants[party.Id].ContainsKey(session.UserId))
+                                if (_plugin.PartyParticipants.ContainsKey(party.Id) && _plugin.PartyParticipants[party.Id].ContainsKey(session.UserId))
                                 {
-                                    _partyParticipants[party.Id][session.UserId].IsBuffering = false;
+                                    _plugin.PartyParticipants[party.Id][session.UserId].IsBuffering = false;
                                 }
                             }
                         }
@@ -1131,7 +1130,12 @@ namespace WatchPartyForEmby
                 {
                     if (File.Exists(item.Path))
                     {
-                        var strmContent = File.ReadAllText(item.Path).Trim();
+                        if (!_strmContentCache.TryGetValue(item.Path, out var strmContent))
+                        {
+                            strmContent = File.ReadAllText(item.Path).Trim();
+                            _strmContentCache[item.Path] = strmContent;
+                        }
+                        
                         _logger.Debug($"[Watch Party] STRM file content: {strmContent}");
                         
                         foreach (var party in config.WatchParties)
@@ -1225,7 +1229,7 @@ namespace WatchPartyForEmby
             return false;
         }
 
-        private void OnPlaybackProgress(object sender, PlaybackProgressEventArgs e)
+        private async void OnPlaybackProgress(object sender, PlaybackProgressEventArgs e)
         {
             try
             {
@@ -1252,18 +1256,18 @@ namespace WatchPartyForEmby
                     
                     if (e.IsPaused && !wasPaused)
                     {
-                        HandlePauseAttempt(party, e.Session, isMaster).Wait();
+                        await HandlePauseAttempt(party, e.Session, isMaster);
                     }
                     
                     if (!e.IsPaused && wasPaused)
                     {
                         // User unpaused - resume all other users
-                        HandleUnpauseAttempt(party, e.Session, isMaster).Wait();
+                        await HandleUnpauseAttempt(party, e.Session, isMaster);
                     }
                     
                     if (!e.IsPaused)
                     {
-                        HandleSeekRestrictions(party, e.Session, e.PlaybackPositionTicks ?? 0, isMaster).Wait();
+                        await HandleSeekRestrictions(party, e.Session, e.PlaybackPositionTicks ?? 0, isMaster);
                     }
                     
                     if (isMaster)
@@ -1312,15 +1316,15 @@ namespace WatchPartyForEmby
                         {
                             _partySessionPauseState[party.Id].Clear();
                         }
-                        if (_partyReadyUsers.ContainsKey(party.Id))
+                        if (_plugin.PartyReadyUsers.ContainsKey(party.Id))
                         {
-                            _partyReadyUsers[party.Id].Clear();
+                            _plugin.PartyReadyUsers[party.Id].Clear();
                         }
                         
-                        if (_partyParticipants.ContainsKey(party.Id) && _partyParticipants[party.Id].Count > 0)
+                        if (_plugin.PartyParticipants.ContainsKey(party.Id) && _plugin.PartyParticipants[party.Id].Count > 0)
                         {
-                            var newHostUserId = _partyParticipants[party.Id].Keys.First();
-                            var newHostParticipant = _partyParticipants[party.Id][newHostUserId];
+                            var newHostUserId = _plugin.PartyParticipants[party.Id].Keys.First();
+                            var newHostParticipant = _plugin.PartyParticipants[party.Id][newHostUserId];
                             party.HostUserId = newHostUserId;
                             _partyHostSessions[party.Id] = newHostParticipant.SessionId;
                             _logger.Info($"[Watch Party] Assigned new host: {newHostParticipant.UserName}");
@@ -1339,9 +1343,9 @@ namespace WatchPartyForEmby
                         {
                             _partySessionPauseState[party.Id].Remove(e.Session.Id);
                         }
-                        if (_partyReadyUsers.ContainsKey(party.Id))
+                        if (_plugin.PartyReadyUsers.ContainsKey(party.Id))
                         {
-                            _partyReadyUsers[party.Id].Remove(e.Session.UserId);
+                            _plugin.PartyReadyUsers[party.Id].Remove(e.Session.UserId);
                         }
                     }
                 }

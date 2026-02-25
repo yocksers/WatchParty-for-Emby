@@ -231,7 +231,7 @@ namespace WatchPartyForEmby.Api
                     HostUserName = hostUserName,
                     CurrentPositionTicks = party.CurrentPositionTicks,
                     IsPlaying = party.IsPlaying,
-                    RequiresPassword = !string.IsNullOrEmpty(party.Password)
+                    RequiresPassword = !string.IsNullOrEmpty(party.PasswordHash)
                 });
             }
 
@@ -240,20 +240,63 @@ namespace WatchPartyForEmby.Api
 
         public object Get(PartyParticipantsRequest request)
         {
+            var plugin = Plugin.Instance;
+            var participants = new List<ParticipantInfo>();
+
+            if (plugin.PartyParticipants.TryGetValue(request.Id, out var partyParticipants))
+            {
+                var readyUsers = plugin.PartyReadyUsers.ContainsKey(request.Id) 
+                    ? plugin.PartyReadyUsers[request.Id] 
+                    : new HashSet<string>();
+
+                var config = plugin.Configuration;
+                var party = config.WatchParties.FirstOrDefault(p => p.Id == request.Id);
+                var hostUserId = party?.HostUserId;
+
+                foreach (var participant in partyParticipants.Values)
+                {
+                    participants.Add(new ParticipantInfo
+                    {
+                        UserId = participant.UserId,
+                        UserName = participant.UserName,
+                        IsHost = participant.UserId == hostUserId,
+                        IsReady = readyUsers.Contains(participant.UserId),
+                        IsBuffering = participant.IsBuffering,
+                        CurrentPositionTicks = participant.CurrentPositionTicks,
+                        LastActivityAt = participant.LastActivityAt
+                    });
+                }
+            }
+
             return new PartyParticipantsResponse
             {
-                Participants = new List<ParticipantInfo>()
+                Participants = participants
             };
         }
 
         public void Post(SetReadyRequest request)
         {
-            var config = Plugin.Instance.Configuration;
+            var plugin = Plugin.Instance;
+            var config = plugin.Configuration;
             var party = config.WatchParties.FirstOrDefault(p => p.Id == request.Id);
             
             if (party == null)
             {
                 throw new ArgumentException($"Party {request.Id} not found");
+            }
+
+            if (!plugin.PartyReadyUsers.ContainsKey(request.Id))
+            {
+                plugin.PartyReadyUsers[request.Id] = new HashSet<string>();
+            }
+
+            if (request.IsReady)
+            {
+                plugin.PartyReadyUsers[request.Id].Add(request.UserId);
+            }
+            else
+            {
+                plugin.PartyReadyUsers[request.Id].Remove(request.UserId);
             }
         }
 
@@ -281,7 +324,11 @@ namespace WatchPartyForEmby.Api
         {
             return new GetUsersResponse
             {
-                Users = new List<EmbyUserInfo>()
+                Users = _userManager.GetUserList(new MediaBrowser.Model.Querying.UserQuery()).Select(u => new EmbyUserInfo 
+                { 
+                    Id = u.Id.ToString(), 
+                    Name = u.Name 
+                }).ToList()
             };
         }
 

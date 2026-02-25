@@ -22,6 +22,9 @@ namespace WatchPartyForEmby
         private bool _lastEnabled = false;
         public static string ExternalWebServerStatus { get; private set; } = "Not Enabled";
 
+        public Dictionary<string, Dictionary<string, PartyParticipant>> PartyParticipants { get; } = new Dictionary<string, Dictionary<string, PartyParticipant>>();
+        public Dictionary<string, HashSet<string>> PartyReadyUsers { get; } = new Dictionary<string, HashSet<string>>();
+
         public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer, ILogManager logManager, IJsonSerializer jsonSerializer)
             : base(applicationPaths, xmlSerializer)
         {
