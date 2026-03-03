@@ -19,6 +19,69 @@
             border-radius: 3px;
             border: 1px solid #777;
         }
+        
+        .autocomplete-container {
+            position: relative;
+        }
+        
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+        
+        .autocomplete-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            color: #e0e0e0;
+            transition: background 0.2s;
+        }
+        
+        .autocomplete-item:hover {
+            background: #3a3a3a;
+        }
+        
+        .autocomplete-item.load-more {
+            color: #4CAF50;
+            font-style: italic;
+            text-align: center;
+        }
+        
+        .autocomplete-item.selected {
+            background: #3a3a3a;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
     </style>
     <div class="scrollSlider flex-direction-column padded-left padded-left-page padded-right padded-top-page padded-bottom-page">
         <div class="readOnlyContent auto-center" style="max-width: 1200px;">
@@ -40,12 +103,11 @@
 
                         <div class="selectContainer" style="margin-top: 1em;">
                             <label class="selectLabel" for="selectedItemId">Select Movie or TV Show</label>
-                            <div style="margin-bottom: 0.5em;">
-                                <input is="emby-input" type="text" id="searchContent" placeholder="Search movies and TV shows..." style="width: 100%;" />
+                            <div class="autocomplete-container">
+                                <input is="emby-input" type="text" id="searchContent" placeholder="Search movies and TV shows..." autocomplete="off" style="width: 100%;" />
+                                <div id="searchContentDropdown" class="autocomplete-dropdown"></div>
+                                <input type="hidden" id="selectedItemId" />
                             </div>
-                            <select is="emby-select" id="selectedItemId" class="emby-select-withcolor emby-select">
-                                <option value="">Select a library first...</option>
-                            </select>
                             <div class="fieldDescription">
                                 Choose which movie or TV show everyone will watch together
                             </div>
@@ -53,12 +115,11 @@
 
                         <div class="selectContainer" id="seriesContainer" style="margin-top: 1em; display: none;">
                             <label class="selectLabel" for="selectedSeasonId">Select Season</label>
-                            <div style="margin-bottom: 0.5em;">
-                                <input is="emby-input" type="text" id="searchSeason" placeholder="Search seasons..." style="width: 100%;" />
+                            <div class="autocomplete-container">
+                                <input is="emby-input" type="text" id="searchSeason" placeholder="Search seasons..." autocomplete="off" style="width: 100%;" />
+                                <div id="searchSeasonDropdown" class="autocomplete-dropdown"></div>
+                                <input type="hidden" id="selectedSeasonId" />
                             </div>
-                            <select is="emby-select" id="selectedSeasonId" class="emby-select-withcolor emby-select">
-                                <option value="">Select a TV show first...</option>
-                            </select>
                             <div class="fieldDescription">
                                 Choose which season
                             </div>
@@ -66,12 +127,11 @@
 
                         <div class="selectContainer" id="episodeContainer" style="margin-top: 1em; display: none;">
                             <label class="selectLabel" for="selectedEpisodeId">Select Episode</label>
-                            <div style="margin-bottom: 0.5em;">
-                                <input is="emby-input" type="text" id="searchEpisode" placeholder="Search episodes..." style="width: 100%;" />
+                            <div class="autocomplete-container">
+                                <input is="emby-input" type="text" id="searchEpisode" placeholder="Search episodes..." autocomplete="off" style="width: 100%;" />
+                                <div id="searchEpisodeDropdown" class="autocomplete-dropdown"></div>
+                                <input type="hidden" id="selectedEpisodeId" />
                             </div>
-                            <select is="emby-select" id="selectedEpisodeId" class="emby-select-withcolor emby-select">
-                                <option value="">Select a season first...</option>
-                            </select>
                             <div class="fieldDescription">
                                 Choose which episode to watch
                             </div>
@@ -321,13 +381,23 @@
 
                         <div class="inputContainer" style="margin-top: 1em;">
                             <label class="inputLabel inputLabelUnfocused" for="listenAddress">Listen Address</label>
-                            <input is="emby-input" type="text" id="listenAddress" placeholder="localhost" />
+                            <input is="emby-input" type="text" id="listenAddress" placeholder="0.0.0.0" />
                             <div class="fieldDescription">
-                                Network address to bind to. Use "localhost" (default, most secure) or "*" to allow external connections. Requires restart.
+                                Network address to bind to. Use "0.0.0.0" (default, all interfaces) for external access or "localhost" for local only. Requires restart.
                             </div>
                         </div>
 
-                        <div class="inputContainer" style="margin-top: 1em;">
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="useReverseProxy" />
+                                <span>Using Reverse Proxy (nginx, Caddy, IIS, etc.)</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Enable this if you're running the external web server behind a reverse proxy. This will disable HTTPS, security headers, and CORS settings since the proxy handles those.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;" id="corsOriginsContainer">
                             <label class="inputLabel inputLabelUnfocused" for="allowedCorsOrigins">Allowed CORS Origins</label>
                             <input is="emby-input" type="text" id="allowedCorsOrigins" placeholder="http://localhost:8097,http://192.168.1.100:8097" />
                             <div class="fieldDescription">
@@ -395,6 +465,126 @@
                             </select>
                             <div class="fieldDescription">
                                 <strong>Required.</strong> All STRM files created from the external dashboard will be placed in this library. This prevents users from adding files to incorrect libraries.
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 2em; margin-bottom: 1em; color: #2196F3;">Security Settings</h3>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;" id="httpsContainer">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableHttps" />
+                                <span>Enable HTTPS</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Use HTTPS instead of HTTP. Requires certificate binding with netsh.<br>
+                                <strong>Important:</strong> You must bind a certificate first. Run as Administrator:<br>
+                                <code style="background: #333; padding: 4px; display: block; margin-top: 4px;">netsh http add sslcert ipport=0.0.0.0:8097 certhash=YOUR_CERT_THUMBPRINT appid={00000000-0000-0000-0000-000000000000}</code>
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;" id="certThumbprintContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="httpsCertificateThumbprint">Certificate Thumbprint</label>
+                            <input is="emby-input" type="text" id="httpsCertificateThumbprint" placeholder="2F3AB9..." maxlength="40" />
+                            <div class="fieldDescription">
+                                SSL certificate thumbprint (40-character hex). Find in Windows Certificate Manager (certmgr.msc).
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableCsrfProtection" />
+                                <span>Enable CSRF Protection</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Protects against Cross-Site Request Forgery attacks. Recommended for internet-exposed servers.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;" id="securityHeadersContainer">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableSecurityHeaders" />
+                                <span>Enable Security Headers</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Adds security headers (X-Frame-Options, CSP, X-Content-Type-Options, etc.) to HTTP responses.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;" id="cspContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="contentSecurityPolicy">Content Security Policy</label>
+                            <input is="emby-input" type="text" id="contentSecurityPolicy" />
+                            <div class="fieldDescription">
+                                CSP header value. Default prevents XSS attacks while allowing necessary scripts/styles.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;" id="hstsContainer">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableHsts" />
+                                <span>Enable HSTS (HTTP Strict Transport Security)</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Forces browsers to use HTTPS. Only enable if HTTPS is enabled and working properly.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;" id="hstsMaxAgeContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="hstsMaxAge">HSTS Max Age (seconds)</label>
+                            <input is="emby-input" type="number" id="hstsMaxAge" min="0" max="63072000" value="31536000" />
+                            <div class="fieldDescription">
+                                How long browsers remember to use HTTPS (default: 1 year). Range: 0-63072000 seconds (2 years).
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableAccountLockout" />
+                                <span>Enable Account Lockout</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Temporarily blocks IP addresses after multiple failed login attempts. Protects against brute force.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="maxFailedLoginAttempts">Max Failed Login Attempts</label>
+                            <input is="emby-input" type="number" id="maxFailedLoginAttempts" min="1" max="20" value="5" />
+                            <div class="fieldDescription">
+                                Number of failed login attempts before lockout (default: 5). Range: 1-20.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="lockoutDurationMinutes">Lockout Duration (minutes)</label>
+                            <input is="emby-input" type="number" id="lockoutDurationMinutes" min="1" max="1440" value="15" />
+                            <div class="fieldDescription">
+                                How long to lock account after failed attempts (default: 15). Range: 1-1440 minutes.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="lockoutWindowMinutes">Lockout Window (minutes)</label>
+                            <input is="emby-input" type="number" id="lockoutWindowMinutes" min="1" max="60" value="10" />
+                            <div class="fieldDescription">
+                                Time window to track failed attempts (default: 10). Range: 1-60 minutes.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer" style="margin-top: 1em;">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" id="enableAuditLogging" />
+                                <span>Enable Audit Logging</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Logs all security events (logins, party creation/deletion, etc.) for monitoring.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer" style="margin-top: 1em;">
+                            <label class="inputLabel inputLabelUnfocused" for="maxAuditLogEntries">Max Audit Log Entries</label>
+                            <input is="emby-input" type="number" id="maxAuditLogEntries" min="100" max="10000" value="1000" />
+                            <div class="fieldDescription">
+                                Maximum number of audit log entries to keep in memory (default: 1000). Range: 100-10000.
                             </div>
                         </div>
 

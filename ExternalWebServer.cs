@@ -24,10 +24,16 @@ namespace WatchPartyForEmby
         private readonly string _listenAddress;
         private readonly Dictionary<string, SessionToken> _activeSessions = new Dictionary<string, SessionToken>();
         private readonly Dictionary<string, RateLimitEntry> _rateLimits = new Dictionary<string, RateLimitEntry>();
+        private readonly Dictionary<string, CsrfToken> _csrfTokens = new Dictionary<string, CsrfToken>();
+        private readonly Dictionary<string, AccountLockout> _loginAttempts = new Dictionary<string, AccountLockout>();
+        private readonly List<AuditLogEntry> _auditLog = new List<AuditLogEntry>();
         private readonly object _sessionLock = new object();
         private readonly object _rateLimitLock = new object();
+        private readonly object _csrfLock = new object();
+        private readonly object _loginLock = new object();
+        private readonly object _auditLock = new object();
 
-        public ExternalWebServer(ILogger logger, IJsonSerializer jsonSerializer, int port, string listenAddress = "localhost")
+        public ExternalWebServer(ILogger logger, IJsonSerializer jsonSerializer, int port, string listenAddress = "0.0.0.0")
         {
             _logger = logger;
             _jsonSerializer = jsonSerializer;
@@ -37,14 +43,54 @@ namespace WatchPartyForEmby
 
             _listener = new HttpListener();
             
-            if (listenAddress == "*" || listenAddress == "0.0.0.0")
+            var config = Plugin.Instance.Configuration;
+            var useHttps = config.EnableHttps && !config.UseReverseProxy;
+            var protocol = useHttps ? "https" : "http";
+            
+            // Support comma-separated listen addresses
+            var addresses = listenAddress.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(addr => addr.Trim())
+                                        .Where(addr => !string.IsNullOrEmpty(addr))
+                                        .ToList();
+            
+            if (addresses.Count == 0)
             {
-                _listener.Prefixes.Add($"http://*:{port}/");
+                addresses.Add("0.0.0.0");
+            }
+            
+            foreach (var address in addresses)
+            {
+                if (address == "*" || address == "0.0.0.0")
+                {
+                    _listener.Prefixes.Add($"{protocol}://*:{port}/");
+                }
+                else if (address == "+")
+                {
+                    _listener.Prefixes.Add($"{protocol}://+:{port}/");
+                }
+                else
+                {
+                    _listener.Prefixes.Add($"{protocol}://{address}:{port}/");
+                }
+            }
+            
+            if (!useHttps && !config.UseReverseProxy)
+            {
+                _logger.Warn($"[ExternalWebServer] WARNING: Using HTTP without encryption. All data transmits in plain text.");
+            }
+            else if (config.UseReverseProxy)
+            {
+                _logger.Info($"[ExternalWebServer] Reverse proxy mode enabled. HTTPS, security headers, and CORS handled by proxy.");
+            }
+            
+            if (addresses.Any(a => a == "*" || a == "0.0.0.0" || a == "+"))
+            {
                 _logger.Warn($"[ExternalWebServer] WARNING: Binding to all network interfaces. This may expose sensitive data.");
             }
-            else
+            
+            if (useHttps)
             {
-                _listener.Prefixes.Add($"http://{listenAddress}:{port}/");
+                _logger.Info($"[ExternalWebServer] HTTPS enabled. Ensure certificate is bound: netsh http add sslcert ipport=0.0.0.0:{port} certhash={config.HttpsCertificateThumbprint} appid={{00000000-0000-0000-0000-000000000000}}");
             }
         }
 
@@ -53,17 +99,31 @@ namespace WatchPartyForEmby
             try
             {
                 _listener.Start();
-                var prefix = _listener.Prefixes.First();
-                _logger.Info($"[ExternalWebServer] Started and listening on {prefix}");
+                var prefixes = string.Join(", ", _listener.Prefixes);
+                _logger.Info($"[ExternalWebServer] Started and listening on: {prefixes}");
                 Task.Run(() => Listen(_cancellationTokenSource.Token));
                 Task.Run(() => CleanupExpiredSessions());
                 return $"Running on {_listenAddress}:{_port}";
             }
             catch (HttpListenerException ex) when (ex.ErrorCode == 5)
             {
-                var errorMsg = _listenAddress == "localhost" 
-                    ? $"Error: Access Denied. On Windows, run as Administrator: netsh http add urlacl url=http://{_listenAddress}:{_port}/ user=\"Everyone\""
-                    : $"Error: Access Denied. Run as Administrator: netsh http add urlacl url=http://{_listenAddress}:{_port}/ user=\"Everyone\"";
+                var config = Plugin.Instance.Configuration;
+                var useHttps = config.EnableHttps && !config.UseReverseProxy;
+                var protocol = useHttps ? "https" : "http";
+                
+                var addresses = _listenAddress.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                            .Select(addr => addr.Trim())
+                                            .Where(addr => !string.IsNullOrEmpty(addr));
+                
+                var commands = new List<string>();
+                foreach (var address in addresses)
+                {
+                    var urlPattern = (address == "*" || address == "0.0.0.0") ? "*" :
+                                    (address == "+") ? "+" : address;
+                    commands.Add($"netsh http add urlacl url={protocol}://{urlPattern}:{_port}/ user=\"Everyone\"");
+                }
+                
+                var errorMsg = $"Error: Access Denied. Run as Administrator:\n" + string.Join("\n", commands);
                 _logger.Error(errorMsg);
                 return errorMsg;
             }
@@ -242,6 +302,179 @@ namespace WatchPartyForEmby
             return message;
         }
 
+        private string GenerateCsrfToken(string ipAddress)
+        {
+            var config = Plugin.Instance.Configuration;
+            if (!config.EnableCsrfProtection) return null;
+
+            var tokenBytes = new byte[32];
+            RandomNumberGenerator.Fill(tokenBytes);
+            var token = Convert.ToBase64String(tokenBytes);
+            
+            lock (_csrfLock)
+            {
+                _csrfTokens[token] = new CsrfToken
+                {
+                    Token = token,
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(30),
+                    IpAddress = ipAddress
+                };
+            }
+            
+            return token;
+        }
+
+        private bool ValidateCsrfToken(string token, string ipAddress)
+        {
+            var config = Plugin.Instance.Configuration;
+            if (!config.EnableCsrfProtection) return true;
+            if (string.IsNullOrEmpty(token)) return false;
+
+            lock (_csrfLock)
+            {
+                if (!_csrfTokens.TryGetValue(token, out var csrfToken))
+                    return false;
+
+                if (!csrfToken.IsValid())
+                {
+                    _csrfTokens.Remove(token);
+                    return false;
+                }
+
+                if (csrfToken.IpAddress != ipAddress)
+                {
+                    _logger.Warn($"[ExternalWebServer] CSRF token used from different IP.");
+                    return false;
+                }
+
+                _csrfTokens.Remove(token);
+                return true;
+            }
+        }
+
+        private bool CheckAccountLockout(string ipAddress)
+        {
+            var config = Plugin.Instance.Configuration;
+            if (!config.EnableAccountLockout) return true;
+
+            lock (_loginLock)
+            {
+                if (!_loginAttempts.ContainsKey(ipAddress))
+                {
+                    _loginAttempts[ipAddress] = new AccountLockout();
+                    return true;
+                }
+
+                var lockout = _loginAttempts[ipAddress];
+
+                if (lockout.LockedUntil.HasValue)
+                {
+                    if (DateTime.UtcNow < lockout.LockedUntil.Value)
+                    {
+                        LogAudit(ipAddress, "login_attempt_blocked", null, false, "Account is locked");
+                        return false;
+                    }
+                    lockout.LockedUntil = null;
+                    lockout.Attempts.Clear();
+                }
+
+                return true;
+            }
+        }
+
+        private void RecordLoginAttempt(string ipAddress, bool success)
+        {
+            var config = Plugin.Instance.Configuration;
+            if (!config.EnableAccountLockout) return;
+
+            lock (_loginLock)
+            {
+                if (!_loginAttempts.ContainsKey(ipAddress))
+                {
+                    _loginAttempts[ipAddress] = new AccountLockout();
+                }
+
+                var lockout = _loginAttempts[ipAddress];
+                lockout.Attempts.Add(new LoginAttempt
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Success = success
+                });
+
+                var recentAttempts = lockout.Attempts
+                    .Where(a => !a.Success && (DateTime.UtcNow - a.Timestamp).TotalMinutes < config.LockoutWindowMinutes)
+                    .ToList();
+
+                if (recentAttempts.Count >= config.MaxFailedLoginAttempts)
+                {
+                    lockout.LockedUntil = DateTime.UtcNow.AddMinutes(config.LockoutDurationMinutes);
+                    _logger.Warn($"[ExternalWebServer] Account locked for {ipAddress} due to {recentAttempts.Count} failed login attempts.");
+                    LogAudit(ipAddress, "account_locked", null, false, $"Locked for {config.LockoutDurationMinutes} minutes");
+                }
+
+                if (success)
+                {
+                    lockout.Attempts.Clear();
+                }
+            }
+        }
+
+        private void LogAudit(string ipAddress, string action, string userId, bool success, string details = "")
+        {
+            var config = Plugin.Instance.Configuration;
+            if (!config.EnableAuditLogging) return;
+
+            lock (_auditLock)
+            {
+                _auditLog.Add(new AuditLogEntry
+                {
+                    Timestamp = DateTime.UtcNow,
+                    IpAddress = ipAddress,
+                    Action = action,
+                    UserId = userId,
+                    Success = success,
+                    Details = details
+                });
+
+                if (_auditLog.Count > config.MaxAuditLogEntries)
+                {
+                    _auditLog.RemoveAt(0);
+                }
+            }
+
+            _logger.Info($"[Audit] {ipAddress} - {action} - Success: {success} - User: {userId ?? "N/A"} - {details}");
+        }
+
+        private void AddSecurityHeaders(HttpListenerResponse response)
+        {
+            var config = Plugin.Instance.Configuration;
+            
+            // Skip security headers if using reverse proxy (proxy will handle them)
+            if (config.UseReverseProxy)
+            {
+                return;
+            }
+            
+            if (config.EnableSecurityHeaders)
+            {
+                response.AddHeader("X-Content-Type-Options", "nosniff");
+                response.AddHeader("X-Frame-Options", "DENY");
+                response.AddHeader("X-XSS-Protection", "1; mode=block");
+                response.AddHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+                
+                if (!string.IsNullOrEmpty(config.ContentSecurityPolicy))
+                {
+                    response.AddHeader("Content-Security-Policy", config.ContentSecurityPolicy);
+                }
+                
+                if (config.EnableHttps && config.EnableHsts)
+                {
+                    response.AddHeader("Strict-Transport-Security", $"max-age={config.HstsMaxAge}; includeSubDomains");
+                }
+            }
+        }
+
         private async Task Listen(CancellationToken token)
         {
             while (!token.IsCancellationRequested && _listener.IsListening)
@@ -274,6 +507,8 @@ namespace WatchPartyForEmby
 
             var ipAddress = request.RemoteEndPoint?.Address?.ToString() ?? "unknown";
 
+            AddSecurityHeaders(response);
+
             if (!CheckRateLimit(ipAddress))
             {
                 response.StatusCode = (int)HttpStatusCode.TooManyRequests;
@@ -287,37 +522,40 @@ namespace WatchPartyForEmby
                 var config = Plugin.Instance.Configuration;
                 var origin = request.Headers["Origin"];
                 
-                // Set CORS headers
-                if (!string.IsNullOrEmpty(config.AllowedCorsOrigins))
+                // Set CORS headers (skip if using reverse proxy)
+                if (!config.UseReverseProxy)
                 {
-                    var allowedOrigins = config.AllowedCorsOrigins.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(o => o.Trim())
-                        .ToList();
+                    if (!string.IsNullOrEmpty(config.AllowedCorsOrigins))
+                    {
+                        var allowedOrigins = config.AllowedCorsOrigins.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(o => o.Trim())
+                            .ToList();
+                        
+                        if (allowedOrigins.Contains("*"))
+                        {
+                            response.AddHeader("Access-Control-Allow-Origin", "*");
+                        }
+                        else if (!string.IsNullOrEmpty(origin) && allowedOrigins.Contains(origin))
+                        {
+                            response.AddHeader("Access-Control-Allow-Origin", origin);
+                            response.AddHeader("Vary", "Origin");
+                        }
+                    }
+                    else
+                    {
+                        // Default to localhost only
+                        if (!string.IsNullOrEmpty(origin) && 
+                            (origin.StartsWith("http://localhost") || origin.StartsWith("http://127.0.0.1")))
+                        {
+                            response.AddHeader("Access-Control-Allow-Origin", origin);
+                            response.AddHeader("Vary", "Origin");
+                        }
+                    }
                     
-                    if (allowedOrigins.Contains("*"))
-                    {
-                        response.AddHeader("Access-Control-Allow-Origin", "*");
-                    }
-                    else if (!string.IsNullOrEmpty(origin) && allowedOrigins.Contains(origin))
-                    {
-                        response.AddHeader("Access-Control-Allow-Origin", origin);
-                        response.AddHeader("Vary", "Origin");
-                    }
+                    response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                    response.AddHeader("Access-Control-Allow-Headers", "Content-Type, X-Session-Token, X-Auth-Password, X-CSRF-Token, X-Party-Password");
+                    response.AddHeader("Access-Control-Expose-Headers", "X-Session-Token, X-CSRF-Token");
                 }
-                else
-                {
-                    // Default to localhost only
-                    if (!string.IsNullOrEmpty(origin) && 
-                        (origin.StartsWith("http://localhost") || origin.StartsWith("http://127.0.0.1")))
-                    {
-                        response.AddHeader("Access-Control-Allow-Origin", origin);
-                        response.AddHeader("Vary", "Origin");
-                    }
-                }
-                
-                response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-                response.AddHeader("Access-Control-Allow-Headers", "Content-Type, X-Session-Token, X-Auth-Password");
-                response.AddHeader("Access-Control-Expose-Headers", "X-Session-Token");
 
                 if (request.HttpMethod == "OPTIONS")
                 {
@@ -421,7 +659,14 @@ namespace WatchPartyForEmby
             }
             else if (path == "/api/users/lookup" && requestBody != null)
             {
-                // Public endpoint - only returns username for display purposes
+                // Require authentication for user lookup
+                if (!ValidateSession(sessionToken, ipAddress))
+                {
+                    response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                    await WriteResponse(response, "{\"error\":\"Invalid or expired session\"}");
+                    return;
+                }
+                
                 await HandleUserLookup(response, requestBody);
                 return;
             }
@@ -475,7 +720,16 @@ namespace WatchPartyForEmby
                     return;
                 }
 
-                await HandleCreateParty(response, requestBody);
+                var csrfToken = request.Headers["X-CSRF-Token"];
+                if (!ValidateCsrfToken(csrfToken, ipAddress))
+                {
+                    response.StatusCode = (int)HttpStatusCode.Forbidden;
+                    await WriteResponse(response, "{\"error\":\"Invalid CSRF token\"}");
+                    LogAudit(ipAddress, "create_party", null, false, "Invalid CSRF token");
+                    return;
+                }
+
+                await HandleCreateParty(response, requestBody, ipAddress);
             }
             else if (path == "/api/parties/delete" && requestBody != null)
             {
@@ -486,7 +740,16 @@ namespace WatchPartyForEmby
                     return;
                 }
 
-                await HandleDeleteParty(response, requestBody);
+                var csrfToken = request.Headers["X-CSRF-Token"];
+                if (!ValidateCsrfToken(csrfToken, ipAddress))
+                {
+                    response.StatusCode = (int)HttpStatusCode.Forbidden;
+                    await WriteResponse(response, "{\"error\":\"Invalid CSRF token\"}");
+                    LogAudit(ipAddress, "delete_party", null, false, "Invalid CSRF token");
+                    return;
+                }
+
+                await HandleDeleteParty(response, requestBody, ipAddress);
             }
             else if (path == "/api/auth/logout" && sessionToken != null)
             {
@@ -508,6 +771,13 @@ namespace WatchPartyForEmby
         {
             try
             {
+                if (!CheckAccountLockout(ipAddress))
+                {
+                    response.StatusCode = (int)HttpStatusCode.Forbidden;
+                    await WriteResponse(response, "{\"error\":\"Account temporarily locked due to too many failed attempts\"}");
+                    return;
+                }
+
                 var request = _jsonSerializer.DeserializeFromString<Dictionary<string, object>>(requestBody);
                 var adminPassword = request.ContainsKey("adminPassword") ? request["adminPassword"]?.ToString() : null;
 
@@ -515,6 +785,7 @@ namespace WatchPartyForEmby
                 {
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     await WriteResponse(response, "{\"error\":\"Invalid input\"}");
+                    LogAudit(ipAddress, "login", null, false, "Invalid input");
                     return;
                 }
 
@@ -523,6 +794,9 @@ namespace WatchPartyForEmby
                 if (string.IsNullOrEmpty(config.AdminPasswordHash) || string.IsNullOrEmpty(adminPassword) || 
                     !PasswordHelper.VerifyPassword(adminPassword, config.AdminPasswordHash))
                 {
+                    RecordLoginAttempt(ipAddress, false);
+                    LogAudit(ipAddress, "login", null, false, "Invalid credentials");
+                    
                     // Add delay to prevent brute force
                     await Task.Delay(1000);
                     response.StatusCode = (int)HttpStatusCode.Unauthorized;
@@ -530,20 +804,31 @@ namespace WatchPartyForEmby
                     return;
                 }
 
+                RecordLoginAttempt(ipAddress, true);
                 var token = CreateSession(ipAddress);
+                var csrfToken = GenerateCsrfToken(ipAddress);
+                
+                LogAudit(ipAddress, "login", "admin", true, "Successful login");
                 
                 response.AddHeader("X-Session-Token", token);
+                if (!string.IsNullOrEmpty(csrfToken))
+                {
+                    response.AddHeader("X-CSRF-Token", csrfToken);
+                }
+                
                 response.StatusCode = (int)HttpStatusCode.OK;
                 response.ContentType = "application/json";
                 await WriteResponse(response, _jsonSerializer.SerializeToString(new { 
                     success = true, 
                     token = token,
+                    csrfToken = csrfToken,
                     expiresIn = config.SessionExpirationMinutes * 60
                 }));
             }
             catch (Exception ex)
             {
                 _logger.ErrorException("[ExternalWebServer] Error during login", ex);
+                LogAudit(ipAddress, "login", null, false, "Exception occurred");
                 response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 await WriteResponse(response, "{\"error\":\"Authentication failed\"}");
             }
@@ -715,7 +1000,7 @@ namespace WatchPartyForEmby
             }
         }
 
-        private async Task HandleCreateParty(HttpListenerResponse response, string requestBody)
+        private async Task HandleCreateParty(HttpListenerResponse response, string requestBody, string ipAddress)
         {
             try
             {
@@ -728,6 +1013,7 @@ namespace WatchPartyForEmby
                 {
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     await WriteResponse(response, "{\"error\":\"Invalid item name\"}");
+                    LogAudit(ipAddress, "create_party", null, false, "Invalid item name");
                     return;
                 }
 
@@ -842,6 +1128,8 @@ namespace WatchPartyForEmby
                 config.WatchParties.Add(newParty);
                 Plugin.Instance.UpdateConfiguration(config);
 
+                LogAudit(ipAddress, "create_party", newParty.MasterUserId, true, $"Party: {newParty.ItemName}");
+
                 var resultJson = _jsonSerializer.SerializeToString(new { success = true, partyId = newParty.Id });
                 response.StatusCode = (int)HttpStatusCode.OK;
                 response.ContentType = "application/json";
@@ -850,12 +1138,13 @@ namespace WatchPartyForEmby
             catch (Exception ex)
             {
                 _logger.ErrorException("[ExternalWebServer] Error creating party", ex);
+                LogAudit(ipAddress, "create_party", null, false, "Exception occurred");
                 response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 await WriteResponse(response, "{\"error\":\"Failed to create party\"}");
             }
         }
 
-        private async Task HandleDeleteParty(HttpListenerResponse response, string requestBody)
+        private async Task HandleDeleteParty(HttpListenerResponse response, string requestBody, string ipAddress)
         {
             try
             {
@@ -866,6 +1155,7 @@ namespace WatchPartyForEmby
                 {
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     await WriteResponse(response, "{\"error\":\"Invalid input\"}");
+                    LogAudit(ipAddress, "delete_party", null, false, "Invalid input");
                     return;
                 }
 
@@ -873,6 +1163,7 @@ namespace WatchPartyForEmby
                 {
                     response.StatusCode = (int)HttpStatusCode.BadRequest;
                     await WriteResponse(response, "{\"error\":\"Party ID is required\"}");
+                    LogAudit(ipAddress, "delete_party", null, false, "Missing party ID");
                     return;
                 }
 
@@ -882,11 +1173,15 @@ namespace WatchPartyForEmby
                 {
                     response.StatusCode = (int)HttpStatusCode.NotFound;
                     await WriteResponse(response, "{\"error\":\"Party not found\"}");
+                    LogAudit(ipAddress, "delete_party", null, false, "Party not found");
                     return;
                 }
 
+                var partyName = party.ItemName;
                 config.WatchParties.Remove(party);
                 Plugin.Instance.UpdateConfiguration(config);
+
+                LogAudit(ipAddress, "delete_party", party.MasterUserId, true, $"Party: {partyName}");
 
                 var resultJson = _jsonSerializer.SerializeToString(new { success = true });
                 response.StatusCode = (int)HttpStatusCode.OK;
@@ -896,6 +1191,7 @@ namespace WatchPartyForEmby
             catch (Exception ex)
             {
                 _logger.ErrorException("[ExternalWebServer] Error deleting party", ex);
+                LogAudit(ipAddress, "delete_party", null, false, "Exception occurred");
                 response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 await WriteResponse(response, "{\"error\":\"Failed to delete party\"}");
             }
@@ -916,5 +1212,40 @@ namespace WatchPartyForEmby
             response.ContentLength64 = buffer.Length;
             await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
         }
+    }
+
+    public class CsrfToken
+    {
+        public string Token { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public string IpAddress { get; set; }
+
+        public bool IsValid()
+        {
+            return DateTime.UtcNow < ExpiresAt;
+        }
+    }
+
+    public class LoginAttempt
+    {
+        public DateTime Timestamp { get; set; }
+        public bool Success { get; set; }
+    }
+
+    public class AccountLockout
+    {
+        public List<LoginAttempt> Attempts { get; set; } = new List<LoginAttempt>();
+        public DateTime? LockedUntil { get; set; }
+    }
+
+    public class AuditLogEntry
+    {
+        public DateTime Timestamp { get; set; }
+        public string IpAddress { get; set; }
+        public string Action { get; set; }
+        public string UserId { get; set; }
+        public bool Success { get; set; }
+        public string Details { get; set; }
     }
 }

@@ -107,7 +107,7 @@ namespace WatchPartyForEmby
         private void OnConfigurationUpdated(object sender, EventArgs e)
         {
             var currentPort = Configuration.ExternalWebServerPort;
-            var currentListenAddress = Configuration.ListenAddress ?? "localhost";
+            var currentListenAddress = Configuration.ListenAddress ?? "0.0.0.0";
             var currentEnabled = Configuration.EnableExternalWebServer;
             
             if (_lastPort != currentPort || _lastListenAddress != currentListenAddress || _lastEnabled != currentEnabled)
@@ -121,7 +121,7 @@ namespace WatchPartyForEmby
         {
             if (Configuration.EnableExternalWebServer)
             {
-                var listenAddress = string.IsNullOrEmpty(Configuration.ListenAddress) ? "localhost" : Configuration.ListenAddress;
+                var listenAddress = string.IsNullOrEmpty(Configuration.ListenAddress) ? "0.0.0.0" : Configuration.ListenAddress;
                 _externalWebServer = new ExternalWebServer(_logger, _jsonSerializer, Configuration.ExternalWebServerPort, listenAddress);
                 ExternalWebServerStatus = _externalWebServer.Start();
                 _logger.Info($"[Watch Party] External web server status: {ExternalWebServerStatus}");

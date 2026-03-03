@@ -202,7 +202,7 @@ namespace WatchPartyForEmby
 
         public bool EnableExternalWebServer { get; set; } = true;
         public int ExternalWebServerPort { get; set; } = 8097;
-        public string ListenAddress { get; set; } = "localhost";
+        public string ListenAddress { get; set; } = "0.0.0.0";
         public string AllowedCorsOrigins { get; set; } = "";
         public string AdminPasswordHash { get; set; }
         public string EmbyApiKey { get; set; }
@@ -212,6 +212,32 @@ namespace WatchPartyForEmby
         public int SessionExpirationMinutes { get; set; } = 60;
         public int RateLimitRequestsPerMinute { get; set; } = 60;
         public int RateLimitBlockDurationMinutes { get; set; } = 15;
+
+        // Reverse Proxy Mode
+        public bool UseReverseProxy { get; set; } = false;
+
+        // HTTPS Settings (disabled when using reverse proxy)
+        public bool EnableHttps { get; set; } = false;
+        public string HttpsCertificateThumbprint { get; set; } = "";
+
+        // CSRF Protection
+        public bool EnableCsrfProtection { get; set; } = true;
+
+        // Security Headers (disabled when using reverse proxy)
+        public bool EnableSecurityHeaders { get; set; } = true;
+        public string ContentSecurityPolicy { get; set; } = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;";
+        public bool EnableHsts { get; set; } = true;
+        public int HstsMaxAge { get; set; } = 31536000;
+
+        // Account Lockout
+        public bool EnableAccountLockout { get; set; } = true;
+        public int MaxFailedLoginAttempts { get; set; } = 5;
+        public int LockoutDurationMinutes { get; set; } = 15;
+        public int LockoutWindowMinutes { get; set; } = 10;
+
+        // Audit Logging
+        public bool EnableAuditLogging { get; set; } = true;
+        public int MaxAuditLogEntries { get; set; } = 1000;
 
         public PluginConfiguration()
         {
@@ -232,13 +258,27 @@ namespace WatchPartyForEmby
             WatchPartyStrmPath = string.Empty;
             EnableExternalWebServer = true;
             ExternalWebServerPort = 8097;
-            ListenAddress = "localhost";
+            ListenAddress = "0.0.0.0";
             AllowedCorsOrigins = "";
             AdminPasswordHash = string.Empty;
             ExternalServerUrl = string.Empty;
             SessionExpirationMinutes = 60;
             RateLimitRequestsPerMinute = 60;
             RateLimitBlockDurationMinutes = 15;
+            UseReverseProxy = false;
+            EnableHttps = false;
+            HttpsCertificateThumbprint = string.Empty;
+            EnableCsrfProtection = true;
+            EnableSecurityHeaders = true;
+            ContentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;";
+            EnableHsts = true;
+            HstsMaxAge = 31536000;
+            EnableAccountLockout = true;
+            MaxFailedLoginAttempts = 5;
+            LockoutDurationMinutes = 15;
+            LockoutWindowMinutes = 10;
+            EnableAuditLogging = true;
+            MaxAuditLogEntries = 1000;
         }
     }
 }

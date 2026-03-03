@@ -195,6 +195,65 @@
             color: #4CAF50 !important;
             background: #2a2a2a !important;
         }
+        
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+        
+        .autocomplete-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            color: #e0e0e0;
+            transition: background 0.2s;
+        }
+        
+        .autocomplete-item:hover {
+            background: #3a3a3a;
+        }
+        
+        .autocomplete-item.load-more {
+            color: #4CAF50;
+            font-style: italic;
+            text-align: center;
+        }
+        
+        .autocomplete-item.selected {
+            background: #3a3a3a;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
     </style>
 </head>
 <body>
@@ -250,25 +309,28 @@
             </div>
             <div style="margin: 15px 0;">
                 <label style="display: block; margin-bottom: 5px;">Select Content:</label>
-                <input type="text" id="searchContent" placeholder="Search movies and TV shows..." style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; margin-bottom: 8px;">
-                <select id="newContentItem" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-                    <option value="">Select a library first</option>
-                </select>
+                <div style="position: relative;">
+                    <input type="text" id="searchContent" placeholder="Search movies and TV shows..." autocomplete="off" style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <div id="searchContentDropdown" class="autocomplete-dropdown"></div>
+                    <input type="hidden" id="newContentItem">
+                </div>
             </div>
             <div id="seriesControls" style="display: none;">
                 <div style="margin: 15px 0;">
                     <label style="display: block; margin-bottom: 5px;">Season:</label>
-                    <input type="text" id="searchSeason" placeholder="Search seasons..." style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; margin-bottom: 8px;">
-                    <select id="newSeason" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-                        <option value="">Select a season</option>
-                    </select>
+                    <div style="position: relative;">
+                        <input type="text" id="searchSeason" placeholder="Search seasons..." autocomplete="off" style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <div id="searchSeasonDropdown" class="autocomplete-dropdown"></div>
+                        <input type="hidden" id="newSeason">
+                    </div>
                 </div>
                 <div style="margin: 15px 0;">
                     <label style="display: block; margin-bottom: 5px;">Episode:</label>
-                    <input type="text" id="searchEpisode" placeholder="Search episodes..." style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; margin-bottom: 8px;">
-                    <select id="newEpisode" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
-                        <option value="">Select an episode</option>
-                    </select>
+                    <div style="position: relative;">
+                        <input type="text" id="searchEpisode" placeholder="Search episodes..." autocomplete="off" style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <div id="searchEpisodeDropdown" class="autocomplete-dropdown"></div>
+                        <input type="hidden" id="newEpisode">
+                    </div>
                 </div>
             </div>
 
@@ -885,71 +947,145 @@
                     window.currentLibraryId = libraryId;
                     window.contentOffset = 0;
                     document.getElementById('searchContent').value = '';
+                    document.getElementById('newContentItem').value = '';
                     loadContentForCreate(libraryId);
                 } else {
-                    document.getElementById('newContentItem').innerHTML = '<option value="">Select a library first</option>';
+                    window.contentItems = [];
+                    document.getElementById('searchContent').value = '';
+                    document.getElementById('newContentItem').value = '';
                 }
             });
             
-            document.getElementById('newContentItem').addEventListener('change', function(e) {
-                if (e.target.value === '__LOAD_MORE__') {
-                    loadMoreContent();
-                    e.target.value = '';
-                    return;
-                }
-                
-                const contentSelect = e.target;
-                const selectedOption = contentSelect.selectedOptions[0];
-                const contentType = selectedOption ? selectedOption.dataset.type : '';
-                
-                if (contentType === 'Series') {
-                    window.currentSeriesId = contentSelect.value;
+            setupAutocomplete('searchContent', 'newContentItem', 'searchContentDropdown', function(itemData) {
+                if (itemData.type === 'Series') {
+                    window.currentSeriesId = itemData.id;
                     window.seasonsOffset = 0;
                     document.getElementById('searchSeason').value = '';
+                    document.getElementById('newSeason').value = '';
                     document.getElementById('searchEpisode').value = '';
+                    document.getElementById('newEpisode').value = '';
                     document.getElementById('seriesControls').style.display = 'block';
-                    loadSeasonsForCreate(contentSelect.value);
+                    loadSeasonsForCreate(itemData.id);
                 } else {
                     document.getElementById('seriesControls').style.display = 'none';
                 }
+            }, function() {
+                loadMoreContent();
             });
             
-            document.getElementById('newSeason').addEventListener('change', function(e) {
-                if (e.target.value === '__LOAD_MORE__') {
-                    loadMoreSeasons();
-                    e.target.value = '';
-                    return;
-                }
-                
-                const seasonId = e.target.value;
+            setupAutocomplete('searchSeason', 'newSeason', 'searchSeasonDropdown', function(itemData) {
                 const seriesId = document.getElementById('newContentItem').value;
-                if (seasonId && seriesId) {
-                    window.currentSeasonId = seasonId;
+                if (itemData.id && seriesId) {
+                    window.currentSeasonId = itemData.id;
                     window.episodesOffset = 0;
                     document.getElementById('searchEpisode').value = '';
-                    loadEpisodesForCreate(seriesId, seasonId);
+                    document.getElementById('newEpisode').value = '';
+                    loadEpisodesForCreate(seriesId, itemData.id);
                 }
+            }, function() {
+                loadMoreSeasons();
             });
             
-            document.getElementById('newEpisode').addEventListener('change', function(e) {
-                if (e.target.value === '__LOAD_MORE__') {
-                    loadMoreEpisodes();
-                    e.target.value = '';
-                }
-            });
-            
-            document.getElementById('searchContent').addEventListener('input', function(e) {
-                filterDropdown(document.getElementById('newContentItem'), e.target.value);
-            });
-            
-            document.getElementById('searchSeason').addEventListener('input', function(e) {
-                filterDropdown(document.getElementById('newSeason'), e.target.value);
-            });
-            
-            document.getElementById('searchEpisode').addEventListener('input', function(e) {
-                filterDropdown(document.getElementById('newEpisode'), e.target.value);
+            setupAutocomplete('searchEpisode', 'newEpisode', 'searchEpisodeDropdown', function(itemData) {
+            }, function() {
+                loadMoreEpisodes();
             });
         });
+        
+        function setupAutocomplete(searchInputId, hiddenInputId, dropdownId, onSelectCallback, onLoadMoreCallback) {
+            const searchInput = document.getElementById(searchInputId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            const dropdown = document.getElementById(dropdownId);
+            
+            searchInput.addEventListener('focus', function() {
+                if (window[`${searchInputId}_items`] && window[`${searchInputId}_items`].length > 0) {
+                    renderDropdown(searchInputId, hiddenInputId, dropdownId, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                }
+            });
+            
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value;
+                hiddenInput.value = '';
+                
+                if (window[`${searchInputId}_items`] && window[`${searchInputId}_items`].length > 0) {
+                    renderDropdown(searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } else {
+                    dropdown.classList.remove('show');
+                }
+            });
+            
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.remove('show');
+                }
+            });
+        }
+        
+        function renderDropdown(searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback) {
+            const searchInput = document.getElementById(searchInputId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            const dropdown = document.getElementById(dropdownId);
+            const items = window[`${searchInputId}_items`] || [];
+            const metadata = window[`${searchInputId}_metadata`] || {};
+            
+            const lowerQuery = query.toLowerCase().trim();
+            const filteredItems = items.filter(item => {
+                if (!lowerQuery) return true;
+                return item.text.toLowerCase().includes(lowerQuery);
+            });
+            
+            dropdown.innerHTML = '';
+            
+            if (filteredItems.length === 0 && !metadata.hasMore) {
+                const noResults = document.createElement('div');
+                noResults.className = 'autocomplete-item';
+                noResults.textContent = 'No results found';
+                noResults.style.textAlign = 'center';
+                noResults.style.color = '#999';
+                dropdown.appendChild(noResults);
+                return;
+            }
+            
+            filteredItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.textContent = item.text;
+                div.dataset.value = item.id;
+                
+                div.addEventListener('click', function() {
+                    searchInput.value = item.text;
+                    hiddenInput.value = item.id;
+                    hiddenInput.dataset.type = item.type || '';
+                    hiddenInput.dataset.name = item.name || item.text;
+                    dropdown.classList.remove('show');
+                    
+                    if (onSelectCallback) {
+                        onSelectCallback({
+                            id: item.id,
+                            text: item.text,
+                            type: item.type,
+                            name: item.name || item.text
+                        });
+                    }
+                });
+                
+                dropdown.appendChild(div);
+            });
+            
+            if (metadata.hasMore) {
+                const loadMore = document.createElement('div');
+                loadMore.className = 'autocomplete-item load-more';
+                loadMore.textContent = `--- Load More (${metadata.currentCount} of ${metadata.totalCount}) ---`;
+                loadMore.addEventListener('click', function() {
+                    if (onLoadMoreCallback) {
+                        onLoadMoreCallback();
+                    }
+                });
+                dropdown.appendChild(loadMore);
+            }
+        }
         
         async function showCreatePartyModal() {
             const adminPassword = await showPasswordModal(
@@ -1021,6 +1157,17 @@
             document.getElementById('newAutoKick').checked = false;
             document.getElementById('newInactiveTimeout').value = 15;
             document.getElementById('seriesControls').style.display = 'none';
+            
+            document.getElementById('searchContent').value = '';
+            document.getElementById('newContentItem').value = '';
+            document.getElementById('searchSeason').value = '';
+            document.getElementById('newSeason').value = '';
+            document.getElementById('searchEpisode').value = '';
+            document.getElementById('newEpisode').value = '';
+            
+            document.getElementById('searchContentDropdown').classList.remove('show');
+            document.getElementById('searchSeasonDropdown').classList.remove('show');
+            document.getElementById('searchEpisodeDropdown').classList.remove('show');
         }
         
         async function loadLibrariesForCreate(serverUrl) {
@@ -1096,29 +1243,24 @@
                 const items = data.Items || [];
                 const totalCount = data.TotalRecordCount || items.length;
                 
-                const select = document.getElementById('newContentItem');
-                select.innerHTML = '<option value="">-- Select content --</option>';
-                
-                items.forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.Id;
-                    option.dataset.type = item.Type;
-                    option.dataset.name = item.Name;
+                window.searchContent_items = items.map(item => {
                     const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
                     const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
-                    option.textContent = `${item.Name}${year}${type}`;
-                    select.appendChild(option);
+                    return {
+                        id: item.Id,
+                        text: `${item.Name}${year}${type}`,
+                        type: item.Type,
+                        name: item.Name
+                    };
                 });
                 
-                window.contentOffset = items.length;
+                window.searchContent_metadata = {
+                    hasMore: items.length < totalCount,
+                    currentCount: items.length,
+                    totalCount: totalCount
+                };
                 
-                if (window.contentOffset < totalCount) {
-                    const loadMoreOption = document.createElement('option');
-                    loadMoreOption.value = '__LOAD_MORE__';
-                    loadMoreOption.textContent = `--- Load More (${window.contentOffset} of ${totalCount}) ---`;
-                    loadMoreOption.className = 'load-more-option';
-                    select.appendChild(loadMoreOption);
-                }
+                window.contentOffset = items.length;
             } catch (err) {
                 console.error('Error loading content:', err);
             }
@@ -1135,26 +1277,22 @@
                 const seasons = data.Items || [];
                 const totalCount = data.TotalRecordCount || seasons.length;
                 
-                const select = document.getElementById('newSeason');
-                select.innerHTML = '<option value="">-- Select season --</option>';
-                
-                seasons.forEach(season => {
-                    const option = document.createElement('option');
-                    option.value = season.Id;
+                window.searchSeason_items = seasons.map(season => {
                     const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
-                    option.textContent = `${season.Name || 'Season' + seasonNum}`;
-                    select.appendChild(option);
+                    return {
+                        id: season.Id,
+                        text: `${season.Name || 'Season' + seasonNum}`,
+                        name: season.Name || 'Season' + seasonNum
+                    };
                 });
                 
-                window.seasonsOffset = seasons.length;
+                window.searchSeason_metadata = {
+                    hasMore: seasons.length < totalCount,
+                    currentCount: seasons.length,
+                    totalCount: totalCount
+                };
                 
-                if (window.seasonsOffset < totalCount) {
-                    const loadMoreOption = document.createElement('option');
-                    loadMoreOption.value = '__LOAD_MORE__';
-                    loadMoreOption.textContent = `--- Load More (${window.seasonsOffset} of ${totalCount}) ---`;
-                    loadMoreOption.className = 'load-more-option';
-                    select.appendChild(loadMoreOption);
-                }
+                window.seasonsOffset = seasons.length;
             } catch (err) {
                 console.error('Error loading seasons:', err);
             }
@@ -1171,28 +1309,23 @@
                 const episodes = data.Items || [];
                 const totalCount = data.TotalRecordCount || episodes.length;
                 
-                const select = document.getElementById('newEpisode');
-                select.innerHTML = '<option value="">-- Select episode --</option>';
-                
-                episodes.forEach(episode => {
-                    const option = document.createElement('option');
-                    option.value = episode.Id;
-                    option.dataset.name = episode.Name;
+                window.searchEpisode_items = episodes.map(episode => {
                     const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
                     const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
-                    option.textContent = `${seasonNum}${epNum} - ${episode.Name}`;
-                    select.appendChild(option);
+                    return {
+                        id: episode.Id,
+                        text: `${seasonNum}${epNum} - ${episode.Name}`,
+                        name: episode.Name
+                    };
                 });
                 
-                window.episodesOffset = episodes.length;
+                window.searchEpisode_metadata = {
+                    hasMore: episodes.length < totalCount,
+                    currentCount: episodes.length,
+                    totalCount: totalCount
+                };
                 
-                if (window.episodesOffset < totalCount) {
-                    const loadMoreOption = document.createElement('option');
-                    loadMoreOption.value = '__LOAD_MORE__';
-                    loadMoreOption.textContent = `--- Load More (${window.episodesOffset} of ${totalCount}) ---`;
-                    loadMoreOption.className = 'load-more-option';
-                    select.appendChild(loadMoreOption);
-                }
+                window.episodesOffset = episodes.length;
             } catch (err) {
                 console.error('Error loading episodes:', err);
             }
@@ -1200,12 +1333,6 @@
         
         async function loadMoreContent() {
             if (!window.currentLibraryId) return;
-            
-            const select = document.getElementById('newContentItem');
-            const loadMoreOption = select.querySelector('.load-more-option');
-            if (loadMoreOption) {
-                loadMoreOption.remove();
-            }
             
             const webServerUrl = window.location.origin;
             const sessionToken = sessionStorage.getItem('watchPartySessionToken');
@@ -1217,26 +1344,30 @@
                 const items = data.Items || [];
                 const totalCount = data.TotalRecordCount || items.length;
                 
-                items.forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.Id;
-                    option.dataset.type = item.Type;
-                    option.dataset.name = item.Name;
+                const newItems = items.map(item => {
                     const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
                     const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
-                    option.textContent = `${item.Name}${year}${type}`;
-                    select.appendChild(option);
+                    return {
+                        id: item.Id,
+                        text: `${item.Name}${year}${type}`,
+                        type: item.Type,
+                        name: item.Name
+                    };
                 });
                 
+                window.searchContent_items = window.searchContent_items.concat(newItems);
                 window.contentOffset += items.length;
                 
-                if (window.contentOffset < totalCount) {
-                    const newLoadMoreOption = document.createElement('option');
-                    newLoadMoreOption.value = '__LOAD_MORE__';
-                    newLoadMoreOption.textContent = `--- Load More (${window.contentOffset} of ${totalCount}) ---`;
-                    newLoadMoreOption.className = 'load-more-option';
-                    select.appendChild(newLoadMoreOption);
-                }
+                window.searchContent_metadata = {
+                    hasMore: window.contentOffset < totalCount,
+                    currentCount: window.contentOffset,
+                    totalCount: totalCount
+                };
+                
+                renderDropdown('searchContent', 'newContentItem', 'searchContentDropdown', 
+                    document.getElementById('searchContent').value, 
+                    null, 
+                    loadMoreContent);
             } catch (err) {
                 console.error('Error loading more content:', err);
             }
@@ -1244,12 +1375,6 @@
         
         async function loadMoreSeasons() {
             if (!window.currentSeriesId) return;
-            
-            const select = document.getElementById('newSeason');
-            const loadMoreOption = select.querySelector('.load-more-option');
-            if (loadMoreOption) {
-                loadMoreOption.remove();
-            }
             
             const webServerUrl = window.location.origin;
             const sessionToken = sessionStorage.getItem('watchPartySessionToken');
@@ -1261,23 +1386,28 @@
                 const seasons = data.Items || [];
                 const totalCount = data.TotalRecordCount || seasons.length;
                 
-                seasons.forEach(season => {
-                    const option = document.createElement('option');
-                    option.value = season.Id;
+                const newItems = seasons.map(season => {
                     const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
-                    option.textContent = `${season.Name || 'Season' + seasonNum}`;
-                    select.appendChild(option);
+                    return {
+                        id: season.Id,
+                        text: `${season.Name || 'Season' + seasonNum}`,
+                        name: season.Name || 'Season' + seasonNum
+                    };
                 });
                 
+                window.searchSeason_items = window.searchSeason_items.concat(newItems);
                 window.seasonsOffset += seasons.length;
                 
-                if (window.seasonsOffset < totalCount) {
-                    const newLoadMoreOption = document.createElement('option');
-                    newLoadMoreOption.value = '__LOAD_MORE__';
-                    newLoadMoreOption.textContent = `--- Load More (${window.seasonsOffset} of ${totalCount}) ---`;
-                    newLoadMoreOption.className = 'load-more-option';
-                    select.appendChild(newLoadMoreOption);
-                }
+                window.searchSeason_metadata = {
+                    hasMore: window.seasonsOffset < totalCount,
+                    currentCount: window.seasonsOffset,
+                    totalCount: totalCount
+                };
+                
+                renderDropdown('searchSeason', 'newSeason', 'searchSeasonDropdown', 
+                    document.getElementById('searchSeason').value, 
+                    null, 
+                    loadMoreSeasons);
             } catch (err) {
                 console.error('Error loading more seasons:', err);
             }
@@ -1287,11 +1417,6 @@
             if (!window.currentSeasonId) return;
             
             const seriesId = document.getElementById('newContentItem').value;
-            const select = document.getElementById('newEpisode');
-            const loadMoreOption = select.querySelector('.load-more-option');
-            if (loadMoreOption) {
-                loadMoreOption.remove();
-            }
             
             const webServerUrl = window.location.origin;
             const sessionToken = sessionStorage.getItem('watchPartySessionToken');
@@ -1303,47 +1428,32 @@
                 const episodes = data.Items || [];
                 const totalCount = data.TotalRecordCount || episodes.length;
                 
-                episodes.forEach(episode => {
-                    const option = document.createElement('option');
-                    option.value = episode.Id;
-                    option.dataset.name = episode.Name;
+                const newItems = episodes.map(episode => {
                     const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
                     const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
-                    option.textContent = `${seasonNum}${epNum} - ${episode.Name}`;
-                    select.appendChild(option);
+                    return {
+                        id: episode.Id,
+                        text: `${seasonNum}${epNum} - ${episode.Name}`,
+                        name: episode.Name
+                    };
                 });
                 
+                window.searchEpisode_items = window.searchEpisode_items.concat(newItems);
                 window.episodesOffset += episodes.length;
                 
-                if (window.episodesOffset < totalCount) {
-                    const newLoadMoreOption = document.createElement('option');
-                    newLoadMoreOption.value = '__LOAD_MORE__';
-                    newLoadMoreOption.textContent = `--- Load More (${window.episodesOffset} of ${totalCount}) ---`;
-                    newLoadMoreOption.className = 'load-more-option';
-                    select.appendChild(newLoadMoreOption);
-                }
+                window.searchEpisode_metadata = {
+                    hasMore: window.episodesOffset < totalCount,
+                    currentCount: window.episodesOffset,
+                    totalCount: totalCount
+                };
+                
+                renderDropdown('searchEpisode', 'newEpisode', 'searchEpisodeDropdown', 
+                    document.getElementById('searchEpisode').value, 
+                    null, 
+                    loadMoreEpisodes);
             } catch (err) {
                 console.error('Error loading more episodes:', err);
             }
-        }
-        
-        function filterDropdown(select, searchQuery) {
-            const query = searchQuery.toLowerCase().trim();
-            const options = Array.from(select.options);
-            
-            options.forEach(option => {
-                if (option.value === '' || option.value === '__LOAD_MORE__') {
-                    option.style.display = '';
-                    return;
-                }
-                
-                const text = option.textContent.toLowerCase();
-                if (query === '' || text.includes(query)) {
-                    option.style.display = '';
-                } else {
-                    option.style.display = 'none';
-                }
-            });
         }
         
         async function createParty() {
@@ -1352,11 +1462,10 @@
             
             const sourceLibraryId = document.getElementById('newSourceLibrary').value;
             
-            const contentSelect = document.getElementById('newContentItem');
-            const contentId = contentSelect.value;
-            const contentOption = contentSelect.selectedOptions[0];
-            const contentType = contentOption ? contentOption.dataset.type : '';
-            const contentName = contentOption ? contentOption.dataset.name : '';
+            const contentInput = document.getElementById('newContentItem');
+            const contentId = contentInput.value;
+            const contentType = contentInput.dataset.type || '';
+            const contentName = contentInput.dataset.name || '';
             
             const maxParticipants = parseInt(document.getElementById('newMaxParticipants').value);
             const partyPassword = document.getElementById('newPartyPassword').value.trim();
@@ -1411,9 +1520,8 @@
             let seasonId = null;
             
             if (contentType === 'Series') {
-                const episodeSelect = document.getElementById('newEpisode');
-                const episodeId = episodeSelect.value;
-                const episodeOption = episodeSelect.selectedOptions[0];
+                const episodeInput = document.getElementById('newEpisode');
+                const episodeId = episodeInput.value;
                 
                 if (!episodeId) {
                     alert('Please select an episode for TV shows');
@@ -1422,7 +1530,7 @@
                 
                 finalItemId = episodeId;
                 finalItemType = 'Episode';
-                finalItemName = episodeOption ? episodeOption.dataset.name : '';
+                finalItemName = episodeInput.dataset.name || '';
                 seriesId = contentId;
                 seasonId = document.getElementById('newSeason').value;
             }

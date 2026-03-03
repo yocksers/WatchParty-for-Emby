@@ -109,30 +109,20 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 this.onLibraryChange(view, e.target.value);
             });
 
-            view.querySelector('#selectedItemId').addEventListener('change', (e) => {
-                if (e.target.value === '__LOAD_MORE__') {
-                    this.loadMoreLibraryContent(view);
-                    e.target.value = '';
-                } else {
-                    this.onItemChange(view, e.target.value);
-                }
-            });
+            this.setupAutocomplete(view, 'searchContent', 'selectedItemId', 'searchContentDropdown', 
+                (itemData) => this.onItemSelect(view, itemData),
+                () => this.loadMoreLibraryContent(view)
+            );
 
-            view.querySelector('#selectedSeasonId').addEventListener('change', (e) => {
-                if (e.target.value === '__LOAD_MORE__') {
-                    this.loadMoreSeasons(view);
-                    e.target.value = '';
-                } else {
-                    this.onSeasonChange(view, e.target.value);
-                }
-            });
+            this.setupAutocomplete(view, 'searchSeason', 'selectedSeasonId', 'searchSeasonDropdown',
+                (itemData) => this.onSeasonSelect(view, itemData),
+                () => this.loadMoreSeasons(view)
+            );
 
-            view.querySelector('#selectedEpisodeId').addEventListener('change', (e) => {
-                if (e.target.value === '__LOAD_MORE__') {
-                    this.loadMoreEpisodes(view);
-                    e.target.value = '';
-                }
-            });
+            this.setupAutocomplete(view, 'searchEpisode', 'selectedEpisodeId', 'searchEpisodeDropdown',
+                (itemData) => this.onEpisodeSelect(view, itemData),
+                () => this.loadMoreEpisodes(view)
+            );
 
             view.querySelector('#autoStartWhenReady').addEventListener('change', (e) => {
                 view.querySelector('#minReadyCount').disabled = !e.target.checked;
@@ -147,6 +137,10 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 view.querySelector('#networkLatencyMeasurementIntervalSeconds').disabled = !enabled;
                 view.querySelector('#autoAdjustForLatency').disabled = !enabled;
                 view.querySelector('#maxLatencyCompensationMs').disabled = !enabled;
+            });
+
+            view.querySelector('#useReverseProxy').addEventListener('change', (e) => {
+                this.toggleReverseProxySettings(view, e.target.checked);
             });
 
             view.querySelector('#isWaitingRoom').addEventListener('change', (e) => {
@@ -166,23 +160,108 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 const placeholders = view.querySelectorAll('#portPlaceholder, #portPlaceholderDocker, #portPlaceholderDocker2');
                 placeholders.forEach(el => el.textContent = port);
             });
+        }
 
-            view.querySelector('#searchContent').addEventListener('input', (e) => {
-                this.filterDropdown(view.querySelector('#selectedItemId'), e.target.value);
+        setupAutocomplete(view, searchInputId, hiddenInputId, dropdownId, onSelectCallback, onLoadMoreCallback) {
+            const searchInput = view.querySelector(`#${searchInputId}`);
+            const hiddenInput = view.querySelector(`#${hiddenInputId}`);
+            const dropdown = view.querySelector(`#${dropdownId}`);
+            
+            searchInput.addEventListener('focus', () => {
+                if (this[`${searchInputId}_items`] && this[`${searchInputId}_items`].length > 0) {
+                    this.renderDropdown(view, searchInputId, hiddenInputId, dropdownId, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                }
             });
-
-            view.querySelector('#searchSeason').addEventListener('input', (e) => {
-                this.filterDropdown(view.querySelector('#selectedSeasonId'), e.target.value);
+            
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value;
+                hiddenInput.value = '';
+                
+                if (this[`${searchInputId}_items`] && this[`${searchInputId}_items`].length > 0) {
+                    this.renderDropdown(view, searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } else {
+                    dropdown.classList.remove('show');
+                }
             });
-
-            view.querySelector('#searchEpisode').addEventListener('input', (e) => {
-                this.filterDropdown(view.querySelector('#selectedEpisodeId'), e.target.value);
+            
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.remove('show');
+                }
             });
         }
 
+        renderDropdown(view, searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback) {
+            const searchInput = view.querySelector(`#${searchInputId}`);
+            const hiddenInput = view.querySelector(`#${hiddenInputId}`);
+            const dropdown = view.querySelector(`#${dropdownId}`);
+            const items = this[`${searchInputId}_items`] || [];
+            const metadata = this[`${searchInputId}_metadata`] || {};
+            
+            const lowerQuery = query.toLowerCase().trim();
+            const filteredItems = items.filter(item => {
+                if (!lowerQuery) return true;
+                return item.text.toLowerCase().includes(lowerQuery);
+            });
+            
+            dropdown.innerHTML = '';
+            
+            if (filteredItems.length === 0 && !metadata.hasMore) {
+                const noResults = document.createElement('div');
+                noResults.className = 'autocomplete-item';
+                noResults.textContent = 'No results found';
+                noResults.style.textAlign = 'center';
+                noResults.style.color = '#999';
+                dropdown.appendChild(noResults);
+                return;
+            }
+            
+            filteredItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.textContent = item.text;
+                div.dataset.value = item.id;
+                
+                div.addEventListener('click', () => {
+                    searchInput.value = item.text;
+                    hiddenInput.value = item.id;
+                    hiddenInput.dataset.type = item.type || '';
+                    hiddenInput.dataset.name = item.name || item.text;
+                    dropdown.classList.remove('show');
+                    
+                    if (onSelectCallback) {
+                        onSelectCallback({
+                            id: item.id,
+                            text: item.text,
+                            type: item.type,
+                            name: item.name || item.text
+                        });
+                    }
+                });
+                
+                dropdown.appendChild(div);
+            });
+            
+            if (metadata.hasMore) {
+                const loadMore = document.createElement('div');
+                loadMore.className = 'autocomplete-item load-more';
+                loadMore.textContent = `--- Load More (${metadata.currentCount} of ${metadata.totalCount}) ---`;
+                loadMore.addEventListener('click', () => {
+                    if (onLoadMoreCallback) {
+                        onLoadMoreCallback();
+                    }
+                });
+                dropdown.appendChild(loadMore);
+            }
+        }
+        
         onLibraryChange(view, libraryId) {
             if (!libraryId) {
-                view.querySelector('#selectedItemId').innerHTML = '<option value="">Select a library first...</option>';
+                this.searchContent_items = [];
+                view.querySelector('#searchContent').value = '';
+                view.querySelector('#selectedItemId').value = '';
                 this.hideSeriesControls(view);
                 return;
             }
@@ -192,33 +271,31 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             
             const searchInput = view.querySelector('#searchContent');
             if (searchInput) searchInput.value = '';
+            view.querySelector('#selectedItemId').value = '';
             
             loading.show();
             loadLibraryContent(libraryId, 0, 100).then(result => {
                 const items = result.Items || [];
                 const totalCount = result.TotalRecordCount || items.length;
-                const select = view.querySelector('#selectedItemId');
-                select.innerHTML = '<option value="">-- Select content --</option>';
                 
-                items.forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.Id;
-                    option.dataset.type = item.Type;
+                this.searchContent_items = items.map(item => {
                     const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
                     const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
-                    option.textContent = `${item.Name}${year}${type}`;
-                    select.appendChild(option);
+                    return {
+                        id: item.Id,
+                        text: `${item.Name}${year}${type}`,
+                        type: item.Type,
+                        name: item.Name
+                    };
                 });
+                
+                this.searchContent_metadata = {
+                    hasMore: items.length < totalCount,
+                    currentCount: items.length,
+                    totalCount: totalCount
+                };
 
                 this.libraryContentOffset = items.length;
-                
-                if (this.libraryContentOffset < totalCount) {
-                    const loadMoreOption = document.createElement('option');
-                    loadMoreOption.value = '__LOAD_MORE__';
-                    loadMoreOption.textContent = `--- Load More (${this.libraryContentOffset} of ${totalCount}) ---`;
-                    loadMoreOption.className = 'load-more-option';
-                    select.appendChild(loadMoreOption);
-                }
 
                 loading.hide();
                 this.hideSeriesControls(view);
@@ -228,51 +305,45 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             });
         }
 
-        onItemChange(view, itemId) {
-            const select = view.querySelector('#selectedItemId');
-            const selectedOption = select.selectedOptions[0];
-            
-            if (!itemId || !selectedOption) {
+        onItemSelect(view, itemData) {
+            if (!itemData.id) {
                 this.hideSeriesControls(view);
                 return;
             }
 
-            const itemType = selectedOption.dataset.type;
-            
-            if (itemType === 'Series') {
-                this.currentSeriesId = itemId;
+            if (itemData.type === 'Series') {
+                this.currentSeriesId = itemData.id;
                 this.seasonsOffset = 0;
                 
                 const searchSeason = view.querySelector('#searchSeason');
                 const searchEpisode = view.querySelector('#searchEpisode');
                 if (searchSeason) searchSeason.value = '';
                 if (searchEpisode) searchEpisode.value = '';
+                view.querySelector('#selectedSeasonId').value = '';
+                view.querySelector('#selectedEpisodeId').value = '';
                 
                 this.showSeriesControls(view);
                 loading.show();
-                loadSeasons(itemId, 0, 100).then(result => {
+                loadSeasons(itemData.id, 0, 100).then(result => {
                     const seasons = result.Items || [];
                     const totalCount = result.TotalRecordCount || seasons.length;
-                    const seasonSelect = view.querySelector('#selectedSeasonId');
-                    seasonSelect.innerHTML = '<option value="">-- Select season --</option>';
                     
-                    seasons.forEach(season => {
-                        const option = document.createElement('option');
-                        option.value = season.Id;
+                    this.searchSeason_items = seasons.map(season => {
                         const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
-                        option.textContent = `${season.Name || 'Season' + seasonNum}`;
-                        seasonSelect.appendChild(option);
+                        return {
+                            id: season.Id,
+                            text: `${season.Name || 'Season' + seasonNum}`,
+                            name: season.Name || 'Season' + seasonNum
+                        };
                     });
+                    
+                    this.searchSeason_metadata = {
+                        hasMore: seasons.length < totalCount,
+                        currentCount: seasons.length,
+                        totalCount: totalCount
+                    };
 
                     this.seasonsOffset = seasons.length;
-                    
-                    if (this.seasonsOffset < totalCount) {
-                        const loadMoreOption = document.createElement('option');
-                        loadMoreOption.value = '__LOAD_MORE__';
-                        loadMoreOption.textContent = `--- Load More (${this.seasonsOffset} of ${totalCount}) ---`;
-                        loadMoreOption.className = 'load-more-option';
-                        seasonSelect.appendChild(loadMoreOption);
-                    }
 
                     loading.hide();
                 }).catch(() => {
@@ -284,45 +355,44 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             }
         }
 
-        onSeasonChange(view, seasonId) {
-            if (!seasonId) {
-                const episodeSelect = view.querySelector('#selectedEpisodeId');
-                episodeSelect.innerHTML = '<option value="">Select a season first...</option>';
+        onSeasonSelect(view, itemData) {
+            if (!itemData.id) {
+                this.searchEpisode_items = [];
+                view.querySelector('#searchEpisode').value = '';
+                view.querySelector('#selectedEpisodeId').value = '';
                 return;
             }
 
             const seriesId = view.querySelector('#selectedItemId').value;
-            this.currentSeasonId = seasonId;
+            this.currentSeasonId = itemData.id;
             this.episodesOffset = 0;
             
             const searchEpisode = view.querySelector('#searchEpisode');
             if (searchEpisode) searchEpisode.value = '';
+            view.querySelector('#selectedEpisodeId').value = '';
             
             loading.show();
-            loadEpisodes(seriesId, seasonId, 0, 100).then(result => {
+            loadEpisodes(seriesId, itemData.id, 0, 100).then(result => {
                 const episodes = result.Items || [];
                 const totalCount = result.TotalRecordCount || episodes.length;
-                const episodeSelect = view.querySelector('#selectedEpisodeId');
-                episodeSelect.innerHTML = '<option value="">-- Select episode --</option>';
                 
-                episodes.forEach(episode => {
-                    const option = document.createElement('option');
-                    option.value = episode.Id;
+                this.searchEpisode_items = episodes.map(episode => {
                     const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
                     const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
-                    option.textContent = `${seasonNum}${epNum} - ${episode.Name}`;
-                    episodeSelect.appendChild(option);
+                    return {
+                        id: episode.Id,
+                        text: `${seasonNum}${epNum} - ${episode.Name}`,
+                        name: episode.Name
+                    };
                 });
+                
+                this.searchEpisode_metadata = {
+                    hasMore: episodes.length < totalCount,
+                    currentCount: episodes.length,
+                    totalCount: totalCount
+                };
 
                 this.episodesOffset = episodes.length;
-                
-                if (this.episodesOffset < totalCount) {
-                    const loadMoreOption = document.createElement('option');
-                    loadMoreOption.value = '__LOAD_MORE__';
-                    loadMoreOption.textContent = `--- Load More (${this.episodesOffset} of ${totalCount}) ---`;
-                    loadMoreOption.className = 'load-more-option';
-                    episodeSelect.appendChild(loadMoreOption);
-                }
 
                 loading.hide();
             }).catch(() => {
@@ -331,39 +401,42 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             });
         }
 
+        onEpisodeSelect(view, itemData) {
+        }
+
         loadMoreLibraryContent(view) {
             if (!this.currentLibraryId) return;
-            
-            const select = view.querySelector('#selectedItemId');
-            const loadMoreOption = select.querySelector('.load-more-option');
-            if (loadMoreOption) {
-                loadMoreOption.remove();
-            }
             
             loading.show();
             loadLibraryContent(this.currentLibraryId, this.libraryContentOffset, 100).then(result => {
                 const items = result.Items || [];
                 const totalCount = result.TotalRecordCount || items.length;
                 
-                items.forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.Id;
-                    option.dataset.type = item.Type;
+                const newItems = items.map(item => {
                     const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
                     const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
-                    option.textContent = `${item.Name}${year}${type}`;
-                    select.appendChild(option);
+                    return {
+                        id: item.Id,
+                        text: `${item.Name}${year}${type}`,
+                        type: item.Type,
+                        name: item.Name
+                    };
                 });
-
+                
+                this.searchContent_items = this.searchContent_items.concat(newItems);
                 this.libraryContentOffset += items.length;
                 
-                if (this.libraryContentOffset < totalCount) {
-                    const newLoadMoreOption = document.createElement('option');
-                    newLoadMoreOption.value = '__LOAD_MORE__';
-                    newLoadMoreOption.textContent = `--- Load More (${this.libraryContentOffset} of ${totalCount}) ---`;
-                    newLoadMoreOption.className = 'load-more-option';
-                    select.appendChild(newLoadMoreOption);
-                }
+                this.searchContent_metadata = {
+                    hasMore: this.libraryContentOffset < totalCount,
+                    currentCount: this.libraryContentOffset,
+                    totalCount: totalCount
+                };
+
+                this.renderDropdown(view, 'searchContent', 'selectedItemId', 'searchContentDropdown',
+                    view.querySelector('#searchContent').value,
+                    (itemData) => this.onItemSelect(view, itemData),
+                    () => this.loadMoreLibraryContent(view)
+                );
 
                 loading.hide();
             }).catch(() => {
@@ -375,34 +448,34 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
         loadMoreSeasons(view) {
             if (!this.currentSeriesId) return;
             
-            const select = view.querySelector('#selectedSeasonId');
-            const loadMoreOption = select.querySelector('.load-more-option');
-            if (loadMoreOption) {
-                loadMoreOption.remove();
-            }
-            
             loading.show();
             loadSeasons(this.currentSeriesId, this.seasonsOffset, 100).then(result => {
                 const seasons = result.Items || [];
                 const totalCount = result.TotalRecordCount || seasons.length;
                 
-                seasons.forEach(season => {
-                    const option = document.createElement('option');
-                    option.value = season.Id;
+                const newItems = seasons.map(season => {
                     const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
-                    option.textContent = `${season.Name || 'Season' + seasonNum}`;
-                    select.appendChild(option);
+                    return {
+                        id: season.Id,
+                        text: `${season.Name || 'Season' + seasonNum}`,
+                        name: season.Name || 'Season' + seasonNum
+                    };
                 });
-
+                
+                this.searchSeason_items = this.searchSeason_items.concat(newItems);
                 this.seasonsOffset += seasons.length;
                 
-                if (this.seasonsOffset < totalCount) {
-                    const newLoadMoreOption = document.createElement('option');
-                    newLoadMoreOption.value = '__LOAD_MORE__';
-                    newLoadMoreOption.textContent = `--- Load More (${this.seasonsOffset} of ${totalCount}) ---`;
-                    newLoadMoreOption.className = 'load-more-option';
-                    select.appendChild(newLoadMoreOption);
-                }
+                this.searchSeason_metadata = {
+                    hasMore: this.seasonsOffset < totalCount,
+                    currentCount: this.seasonsOffset,
+                    totalCount: totalCount
+                };
+
+                this.renderDropdown(view, 'searchSeason', 'selectedSeasonId', 'searchSeasonDropdown',
+                    view.querySelector('#searchSeason').value,
+                    (itemData) => this.onSeasonSelect(view, itemData),
+                    () => this.loadMoreSeasons(view)
+                );
 
                 loading.hide();
             }).catch(() => {
@@ -415,59 +488,41 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             if (!this.currentSeasonId) return;
             
             const seriesId = view.querySelector('#selectedItemId').value;
-            const select = view.querySelector('#selectedEpisodeId');
-            const loadMoreOption = select.querySelector('.load-more-option');
-            if (loadMoreOption) {
-                loadMoreOption.remove();
-            }
             
             loading.show();
             loadEpisodes(seriesId, this.currentSeasonId, this.episodesOffset, 100).then(result => {
                 const episodes = result.Items || [];
                 const totalCount = result.TotalRecordCount || episodes.length;
                 
-                episodes.forEach(episode => {
-                    const option = document.createElement('option');
-                    option.value = episode.Id;
+                const newItems = episodes.map(episode => {
                     const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
                     const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
-                    option.textContent = `${seasonNum}${epNum} - ${episode.Name}`;
-                    select.appendChild(option);
+                    return {
+                        id: episode.Id,
+                        text: `${seasonNum}${epNum} - ${episode.Name}`,
+                        name: episode.Name
+                    };
                 });
-
+                
+                this.searchEpisode_items = this.searchEpisode_items.concat(newItems);
                 this.episodesOffset += episodes.length;
                 
-                if (this.episodesOffset < totalCount) {
-                    const newLoadMoreOption = document.createElement('option');
-                    newLoadMoreOption.value = '__LOAD_MORE__';
-                    newLoadMoreOption.textContent = `--- Load More (${this.episodesOffset} of ${totalCount}) ---`;
-                    newLoadMoreOption.className = 'load-more-option';
-                    select.appendChild(newLoadMoreOption);
-                }
+                this.searchEpisode_metadata = {
+                    hasMore: this.episodesOffset < totalCount,
+                    currentCount: this.episodesOffset,
+                    totalCount: totalCount
+                };
+
+                this.renderDropdown(view, 'searchEpisode', 'selectedEpisodeId', 'searchEpisodeDropdown',
+                    view.querySelector('#searchEpisode').value,
+                    (itemData) => this.onEpisodeSelect(view, itemData),
+                    () => this.loadMoreEpisodes(view)
+                );
 
                 loading.hide();
             }).catch(() => {
                 loading.hide();
                 toast({ type: 'error', text: 'Error loading more episodes.' });
-            });
-        }
-
-        filterDropdown(select, searchQuery) {
-            const query = searchQuery.toLowerCase().trim();
-            const options = Array.from(select.options);
-            
-            options.forEach(option => {
-                if (option.value === '' || option.value === '__LOAD_MORE__') {
-                    option.style.display = '';
-                    return;
-                }
-                
-                const text = option.textContent.toLowerCase();
-                if (query === '' || text.includes(query)) {
-                    option.style.display = '';
-                } else {
-                    option.style.display = 'none';
-                }
             });
         }
 
@@ -479,13 +534,42 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
         hideSeriesControls(view) {
             view.querySelector('#seriesContainer').style.display = 'none';
             view.querySelector('#episodeContainer').style.display = 'none';
-            view.querySelector('#selectedSeasonId').innerHTML = '<option value="">Select a TV show first...</option>';
-            view.querySelector('#selectedEpisodeId').innerHTML = '<option value="">Select a season first...</option>';
             
-            const searchSeason = view.querySelector('#searchSeason');
-            const searchEpisode = view.querySelector('#searchEpisode');
-            if (searchSeason) searchSeason.value = '';
-            if (searchEpisode) searchEpisode.value = '';
+            this.searchSeason_items = [];
+            this.searchEpisode_items = [];
+            
+            view.querySelector('#searchSeason').value = '';
+            view.querySelector('#selectedSeasonId').value = '';
+            view.querySelector('#searchEpisode').value = '';
+            view.querySelector('#selectedEpisodeId').value = '';
+            
+            view.querySelector('#searchSeasonDropdown').classList.remove('show');
+            view.querySelector('#searchEpisodeDropdown').classList.remove('show');
+        }
+
+        toggleReverseProxySettings(view, useReverseProxy) {
+            const proxyManagedElements = [
+                'corsOriginsContainer',
+                'httpsContainer',
+                'certThumbprintContainer',
+                'securityHeadersContainer',
+                'cspContainer',
+                'hstsContainer',
+                'hstsMaxAgeContainer'
+            ];
+
+            proxyManagedElements.forEach(id => {
+                const element = view.querySelector(`#${id}`);
+                if (element) {
+                    element.style.display = useReverseProxy ? 'none' : 'block';
+                }
+            });
+
+            if (useReverseProxy) {
+                view.querySelector('#enableHttps').checked = false;
+                view.querySelector('#enableSecurityHeaders').checked = false;
+                view.querySelector('#enableHsts').checked = false;
+            }
         }
 
         renderPartyList(view, config) {
@@ -620,12 +704,29 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 view.querySelector('#enableExternalWebServer').checked = config.EnableExternalWebServer !== false;
                 view.querySelector('#externalWebServerPort').value = config.ExternalWebServerPort || 8097;
                 view.querySelector('#listenAddress').value = config.ListenAddress || 'localhost';
+                view.querySelector('#useReverseProxy').checked = config.UseReverseProxy || false;
                 view.querySelector('#allowedCorsOrigins').value = config.AllowedCorsOrigins || '';
                 view.querySelector('#sessionExpirationMinutes').value = config.SessionExpirationMinutes || 60;
                 view.querySelector('#rateLimitRequestsPerMinute').value = config.RateLimitRequestsPerMinute || 60;
                 view.querySelector('#rateLimitBlockDurationMinutes').value = config.RateLimitBlockDurationMinutes || 15;
                 view.querySelector('#externalServerUrl').value = config.ExternalServerUrl || '';
                 view.querySelector('#embyApiKey').value = config.EmbyApiKey || '';
+                
+                view.querySelector('#enableHttps').checked = config.EnableHttps || false;
+                view.querySelector('#httpsCertificateThumbprint').value = config.HttpsCertificateThumbprint || '';
+                view.querySelector('#enableCsrfProtection').checked = config.EnableCsrfProtection !== false;
+                view.querySelector('#enableSecurityHeaders').checked = config.EnableSecurityHeaders !== false;
+                view.querySelector('#contentSecurityPolicy').value = config.ContentSecurityPolicy || "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;";
+                view.querySelector('#enableHsts').checked = config.EnableHsts !== false;
+                view.querySelector('#hstsMaxAge').value = config.HstsMaxAge || 31536000;
+                view.querySelector('#enableAccountLockout').checked = config.EnableAccountLockout !== false;
+                view.querySelector('#maxFailedLoginAttempts').value = config.MaxFailedLoginAttempts || 5;
+                view.querySelector('#lockoutDurationMinutes').value = config.LockoutDurationMinutes || 15;
+                view.querySelector('#lockoutWindowMinutes').value = config.LockoutWindowMinutes || 10;
+                view.querySelector('#enableAuditLogging').checked = config.EnableAuditLogging !== false;
+                view.querySelector('#maxAuditLogEntries').value = config.MaxAuditLogEntries || 1000;
+                
+                this.toggleReverseProxySettings(view, config.UseReverseProxy || false);
                 
                 const strmLibrarySelect = view.querySelector('#strmTargetLibrary');
                 populateLibraryDropdown(view, strmLibrarySelect);
@@ -685,61 +786,96 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                     
                     loadLibraryContent(config.SelectedLibraryId).then(result => {
                         const items = result.Items || [];
-                        const select = view.querySelector('#selectedItemId');
-                        select.innerHTML = '<option value="">-- Select content --</option>';
                         
-                        items.forEach(item => {
-                            const option = document.createElement('option');
-                            option.value = item.Id;
-                            option.dataset.type = item.Type;
+                        this.searchContent_items = items.map(item => {
                             const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
                             const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
-                            option.textContent = `${item.Name}${year}${type}`;
-                            select.appendChild(option);
+                            return {
+                                id: item.Id,
+                                text: `${item.Name}${year}${type}`,
+                                type: item.Type,
+                                name: item.Name
+                            };
                         });
+                        
+                        this.searchContent_metadata = {
+                            hasMore: false,
+                            currentCount: items.length,
+                            totalCount: items.length
+                        };
 
                         if (config.SelectedItemType === 'Episode' && config.SelectedSeriesId) {
-                            select.value = config.SelectedSeriesId;
+                            const seriesItem = this.searchContent_items.find(item => item.id === config.SelectedSeriesId);
+                            if (seriesItem) {
+                                view.querySelector('#searchContent').value = seriesItem.text;
+                                view.querySelector('#selectedItemId').value = config.SelectedSeriesId;
+                                view.querySelector('#selectedItemId').dataset.type = 'Series';
+                                view.querySelector('#selectedItemId').dataset.name = seriesItem.name;
+                            }
                             this.showSeriesControls(view);
                             
                             loadSeasons(config.SelectedSeriesId).then(seasonsResult => {
                                 const seasons = seasonsResult.Items || [];
-                                const seasonSelect = view.querySelector('#selectedSeasonId');
-                                seasonSelect.innerHTML = '<option value="">-- Select season --</option>';
                                 
-                                seasons.forEach(season => {
-                                    const option = document.createElement('option');
-                                    option.value = season.Id;
+                                this.searchSeason_items = seasons.map(season => {
                                     const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
-                                    option.textContent = `${season.Name || 'Season' + seasonNum}`;
-                                    seasonSelect.appendChild(option);
+                                    return {
+                                        id: season.Id,
+                                        text: `${season.Name || 'Season' + seasonNum}`,
+                                        name: season.Name || 'Season' + seasonNum
+                                    };
                                 });
+                                
+                                this.searchSeason_metadata = {
+                                    hasMore: false,
+                                    currentCount: seasons.length,
+                                    totalCount: seasons.length
+                                };
 
                                 if (config.SelectedSeasonId) {
-                                    seasonSelect.value = config.SelectedSeasonId;
+                                    const seasonItem = this.searchSeason_items.find(item => item.id === config.SelectedSeasonId);
+                                    if (seasonItem) {
+                                        view.querySelector('#searchSeason').value = seasonItem.text;
+                                        view.querySelector('#selectedSeasonId').value = config.SelectedSeasonId;
+                                    }
                                     
                                     loadEpisodes(config.SelectedSeriesId, config.SelectedSeasonId).then(episodesResult => {
                                         const episodes = episodesResult.Items || [];
-                                        const episodeSelect = view.querySelector('#selectedEpisodeId');
-                                        episodeSelect.innerHTML = '<option value="">-- Select episode --</option>';
                                         
-                                        episodes.forEach(episode => {
-                                            const option = document.createElement('option');
-                                            option.value = episode.Id;
+                                        this.searchEpisode_items = episodes.map(episode => {
                                             const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
                                             const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
-                                            option.textContent = `${seasonNum}${epNum} - ${episode.Name}`;
-                                            episodeSelect.appendChild(option);
+                                            return {
+                                                id: episode.Id,
+                                                text: `${seasonNum}${epNum} - ${episode.Name}`,
+                                                name: episode.Name
+                                            };
                                         });
+                                        
+                                        this.searchEpisode_metadata = {
+                                            hasMore: false,
+                                            currentCount: episodes.length,
+                                            totalCount: episodes.length
+                                        };
 
                                         if (config.SelectedItemId) {
-                                            episodeSelect.value = config.SelectedItemId;
+                                            const episodeItem = this.searchEpisode_items.find(item => item.id === config.SelectedItemId);
+                                            if (episodeItem) {
+                                                view.querySelector('#searchEpisode').value = episodeItem.text;
+                                                view.querySelector('#selectedEpisodeId').value = config.SelectedItemId;
+                                            }
                                         }
                                     });
                                 }
                             });
                         } else if (config.SelectedItemId) {
-                            select.value = config.SelectedItemId;
+                            const selectedItem = this.searchContent_items.find(item => item.id === config.SelectedItemId);
+                            if (selectedItem) {
+                                view.querySelector('#searchContent').value = selectedItem.text;
+                                view.querySelector('#selectedItemId').value = config.SelectedItemId;
+                                view.querySelector('#selectedItemId').dataset.type = selectedItem.type;
+                                view.querySelector('#selectedItemId').dataset.name = selectedItem.name;
+                            }
                         }
                     });
                 }
@@ -774,9 +910,8 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             loading.show();
             
             const libraryId = view.querySelector('#selectedLibraryId').value;
-            const itemSelect = view.querySelector('#selectedItemId');
-            const itemId = itemSelect.value;
-            const selectedItemOption = itemSelect.selectedOptions[0];
+            const itemInput = view.querySelector('#selectedItemId');
+            const itemId = itemInput.value;
             
             if (!itemId) {
                 loading.hide();
@@ -784,17 +919,17 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 return;
             }
 
-            const itemType = selectedItemOption ? selectedItemOption.dataset.type : null;
+            const itemType = itemInput.dataset.type || null;
             
             let finalItemId = itemId;
-            let finalItemName = selectedItemOption ? selectedItemOption.textContent : '';
+            let finalItemName = view.querySelector('#searchContent').value;
             let finalItemType = itemType;
             let seriesId = null;
             let seasonId = null;
 
             if (itemType === 'Series') {
-                const episodeSelect = view.querySelector('#selectedEpisodeId');
-                const episodeId = episodeSelect.value;
+                const episodeInput = view.querySelector('#selectedEpisodeId');
+                const episodeId = episodeInput.value;
                 
                 if (!episodeId) {
                     loading.hide();
@@ -806,9 +941,7 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 finalItemType = 'Episode';
                 seriesId = itemId;
                 seasonId = view.querySelector('#selectedSeasonId').value;
-                
-                const episodeOption = episodeSelect.selectedOptions[0];
-                finalItemName = episodeOption ? episodeOption.textContent : '';
+                finalItemName = view.querySelector('#searchEpisode').value;
             }
             
             const libraryNameSelect = view.querySelector('#libraryName');
@@ -898,7 +1031,9 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                     Dashboard.processPluginConfigurationUpdateResult(result);
                     
                     view.querySelector('#selectedLibraryId').value = '';
-                    view.querySelector('#selectedItemId').innerHTML = '<option value="">Select a library first...</option>';
+                    const itemSelect = view.querySelector('#selectedItemId');
+                    itemSelect.innerHTML = '<option value="">Select a library first...</option>';
+                    delete itemSelect._allOptions;
                     view.querySelector('#isPartyActive').checked = false;
                     view.querySelector('#maxParticipants').value = 50;
                     view.querySelector('#libraryName').value = '';
@@ -940,12 +1075,27 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 config.EnableExternalWebServer = view.querySelector('#enableExternalWebServer').checked;
                 config.ExternalWebServerPort = parseInt(view.querySelector('#externalWebServerPort').value) || 8097;
                 config.ListenAddress = view.querySelector('#listenAddress').value.trim() || 'localhost';
+                config.UseReverseProxy = view.querySelector('#useReverseProxy').checked;
                 config.AllowedCorsOrigins = view.querySelector('#allowedCorsOrigins').value.trim();
                 config.SessionExpirationMinutes = parseInt(view.querySelector('#sessionExpirationMinutes').value) || 60;
                 config.RateLimitRequestsPerMinute = parseInt(view.querySelector('#rateLimitRequestsPerMinute').value) || 60;
                 config.RateLimitBlockDurationMinutes = parseInt(view.querySelector('#rateLimitBlockDurationMinutes').value) || 15;
                 config.ExternalServerUrl = view.querySelector('#externalServerUrl').value.trim();
                 config.EmbyApiKey = view.querySelector('#embyApiKey').value.trim();
+                
+                config.EnableHttps = view.querySelector('#enableHttps').checked;
+                config.HttpsCertificateThumbprint = view.querySelector('#httpsCertificateThumbprint').value.trim();
+                config.EnableCsrfProtection = view.querySelector('#enableCsrfProtection').checked;
+                config.EnableSecurityHeaders = view.querySelector('#enableSecurityHeaders').checked;
+                config.ContentSecurityPolicy = view.querySelector('#contentSecurityPolicy').value.trim();
+                config.EnableHsts = view.querySelector('#enableHsts').checked;
+                config.HstsMaxAge = parseInt(view.querySelector('#hstsMaxAge').value) || 31536000;
+                config.EnableAccountLockout = view.querySelector('#enableAccountLockout').checked;
+                config.MaxFailedLoginAttempts = parseInt(view.querySelector('#maxFailedLoginAttempts').value) || 5;
+                config.LockoutDurationMinutes = parseInt(view.querySelector('#lockoutDurationMinutes').value) || 15;
+                config.LockoutWindowMinutes = parseInt(view.querySelector('#lockoutWindowMinutes').value) || 10;
+                config.EnableAuditLogging = view.querySelector('#enableAuditLogging').checked;
+                config.MaxAuditLogEntries = parseInt(view.querySelector('#maxAuditLogEntries').value) || 1000;
                 
                 const strmLibrarySelect = view.querySelector('#strmTargetLibrary');
                 const strmLibraryOption = strmLibrarySelect.selectedOptions[0];
