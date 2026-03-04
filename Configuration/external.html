@@ -997,6 +997,8 @@
             const hiddenInput = document.getElementById(hiddenInputId);
             const dropdown = document.getElementById(dropdownId);
             
+            let searchTimeout;
+            
             searchInput.addEventListener('focus', function() {
                 if (window[`${searchInputId}_items`] && window[`${searchInputId}_items`].length > 0) {
                     renderDropdown(searchInputId, hiddenInputId, dropdownId, '', onSelectCallback, onLoadMoreCallback);
@@ -1005,14 +1007,22 @@
             });
             
             searchInput.addEventListener('input', function(e) {
-                const query = e.target.value;
+                const query = e.target.value.trim();
                 hiddenInput.value = '';
                 
-                if (window[`${searchInputId}_items`] && window[`${searchInputId}_items`].length > 0) {
-                    renderDropdown(searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback);
-                    dropdown.classList.add('show');
-                } else {
-                    dropdown.classList.remove('show');
+                clearTimeout(searchTimeout);
+                
+                if (query.length >= 2) {
+                    searchTimeout = setTimeout(function() {
+                        performSearch(searchInputId, query, onSelectCallback, onLoadMoreCallback);
+                    }, 300);
+                } else if (query.length === 0) {
+                    if (window[`${searchInputId}_items`] && window[`${searchInputId}_items`].length > 0) {
+                        renderDropdown(searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback);
+                        dropdown.classList.add('show');
+                    } else {
+                        dropdown.classList.remove('show');
+                    }
                 }
             });
             
@@ -1074,7 +1084,7 @@
                 dropdown.appendChild(div);
             });
             
-            if (metadata.hasMore) {
+            if (metadata.hasMore && !lowerQuery) {
                 const loadMore = document.createElement('div');
                 loadMore.className = 'autocomplete-item load-more';
                 loadMore.textContent = `--- Load More (${metadata.currentCount} of ${metadata.totalCount}) ---`;
@@ -1084,6 +1094,108 @@
                     }
                 });
                 dropdown.appendChild(loadMore);
+            }
+        }
+        
+        async function performSearch(searchInputId, query, onSelectCallback, onLoadMoreCallback) {
+            const dropdown = document.getElementById(`${searchInputId}Dropdown`);
+            const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            
+            if (searchInputId === 'searchContent' && window.currentLibraryId) {
+                window[`${searchInputId}_searchMode`] = true;
+                try {
+                    const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${window.currentLibraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=0&Limit=50&SearchTerm=${encodeURIComponent(query)}`, {
+                        headers: { 'X-Session-Token': sessionToken }
+                    });
+                    const data = await response.json();
+                    const items = data.Items || [];
+                    const totalCount = data.TotalRecordCount || items.length;
+                    
+                    window[`${searchInputId}_items`] = items.map(item => {
+                        const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
+                        const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
+                        return {
+                            id: item.Id,
+                            text: `${item.Name}${year}${type}`,
+                            type: item.Type,
+                            name: item.Name
+                        };
+                    });
+                    
+                    window[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: items.length,
+                        totalCount: totalCount
+                    };
+                    
+                    renderDropdown(searchInputId, searchInputId === 'searchContent' ? 'newContentItem' : searchInputId === 'searchSeason' ? 'newSeason' : 'newEpisode', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } catch (err) {
+                    console.error('Error searching content:', err);
+                }
+            } else if (searchInputId === 'searchSeason' && window.currentSeriesId) {
+                window[`${searchInputId}_searchMode`] = true;
+                try {
+                    const response = await fetch(`${webServerUrl}/api/emby/Shows/${window.currentSeriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=0&Limit=50&SearchTerm=${encodeURIComponent(query)}`, {
+                        headers: { 'X-Session-Token': sessionToken }
+                    });
+                    const data = await response.json();
+                    const seasons = data.Items || [];
+                    const totalCount = data.TotalRecordCount || seasons.length;
+                    
+                    window[`${searchInputId}_items`] = seasons.map(season => {
+                        const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
+                        return {
+                            id: season.Id,
+                            text: `${season.Name || 'Season' + seasonNum}`,
+                            name: season.Name || 'Season' + seasonNum
+                        };
+                    });
+                    
+                    window[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: seasons.length,
+                        totalCount: totalCount
+                    };
+                    
+                    renderDropdown(searchInputId, 'newSeason', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } catch (err) {
+                    console.error('Error searching seasons:', err);
+                }
+            } else if (searchInputId === 'searchEpisode' && window.currentSeasonId) {
+                const seriesId = window.currentSeriesId;
+                window[`${searchInputId}_searchMode`] = true;
+                try {
+                    const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${window.currentSeasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=0&Limit=50&SearchTerm=${encodeURIComponent(query)}`, {
+                        headers: { 'X-Session-Token': sessionToken }
+                    });
+                    const data = await response.json();
+                    const episodes = data.Items || [];
+                    const totalCount = data.TotalRecordCount || episodes.length;
+                    
+                    window[`${searchInputId}_items`] = episodes.map(episode => {
+                        const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
+                        const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
+                        return {
+                            id: episode.Id,
+                            text: `${seasonNum}${epNum} - ${episode.Name}`,
+                            name: episode.Name
+                        };
+                    });
+                    
+                    window[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: episodes.length,
+                        totalCount: totalCount
+                    };
+                    
+                    renderDropdown(searchInputId, 'newEpisode', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } catch (err) {
+                    console.error('Error searching episodes:', err);
+                }
             }
         }
         
@@ -1235,6 +1347,7 @@
         async function loadContentForCreate(libraryId) {
             const webServerUrl = window.location.origin;
             const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            window.searchContent_searchMode = false;
             try {
                 const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${libraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=0&Limit=100`, {
                     headers: { 'X-Session-Token': sessionToken }
@@ -1269,6 +1382,7 @@
         async function loadSeasonsForCreate(seriesId) {
             const webServerUrl = window.location.origin;
             const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            window.searchSeason_searchMode = false;
             try {
                 const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=0&Limit=100`, {
                     headers: { 'X-Session-Token': sessionToken }
@@ -1300,6 +1414,7 @@
         
         async function loadEpisodesForCreate(seriesId, seasonId) {
             const webServerUrl = window.location.origin;
+            window.searchEpisode_searchMode = false;
             const sessionToken = sessionStorage.getItem('watchPartySessionToken');
             try {
                 const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${seasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=0&Limit=100`, {

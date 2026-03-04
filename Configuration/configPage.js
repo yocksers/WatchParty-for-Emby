@@ -33,8 +33,8 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
         });
     }
 
-    function loadLibraryContent(libraryId, startIndex = 0, limit = 100) {
-        return ApiClient.getItems(ApiClient.getCurrentUserId(), {
+    function loadLibraryContent(libraryId, startIndex = 0, limit = 100, searchTerm = '') {
+        const params = {
             ParentId: libraryId,
             Recursive: true,
             IncludeItemTypes: 'Movie,Series',
@@ -43,31 +43,50 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             Fields: 'Id,Name,ProductionYear,Type',
             StartIndex: startIndex,
             Limit: limit
-        });
+        };
+        
+        if (searchTerm) {
+            params.SearchTerm = searchTerm;
+        }
+        
+        return ApiClient.getItems(ApiClient.getCurrentUserId(), params);
     }
 
-    function loadSeasons(seriesId, startIndex = 0, limit = 100) {
-        return ApiClient.getSeasons(seriesId, {
+    function loadSeasons(seriesId, startIndex = 0, limit = 100, searchTerm = '') {
+        const params = {
             userId: ApiClient.getCurrentUserId(),
             Fields: 'Id,Name,IndexNumber',
             StartIndex: startIndex,
             Limit: limit
-        });
+        };
+        
+        if (searchTerm) {
+            params.SearchTerm = searchTerm;
+        }
+        
+        return ApiClient.getSeasons(seriesId, params);
     }
 
-    function loadEpisodes(seriesId, seasonId, startIndex = 0, limit = 100) {
-        return ApiClient.getEpisodes(seriesId, {
+    function loadEpisodes(seriesId, seasonId, startIndex = 0, limit = 100, searchTerm = '') {
+        const params = {
             seasonId: seasonId,
             userId: ApiClient.getCurrentUserId(),
             Fields: 'Id,Name,IndexNumber,ParentIndexNumber',
             StartIndex: startIndex,
             Limit: limit
-        });
+        };
+        
+        if (searchTerm) {
+            params.SearchTerm = searchTerm;
+        }
+        
+        return ApiClient.getEpisodes(seriesId, params);
     }
 
     function loadUsers() {
         return ApiClient.getUsers();
     }
+
 
     function populateUsersDropdown(view, select, selectedUserIds = []) {
         loadUsers().then(users => {
@@ -167,6 +186,8 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             const hiddenInput = view.querySelector(`#${hiddenInputId}`);
             const dropdown = view.querySelector(`#${dropdownId}`);
             
+            let searchTimeout;
+            
             searchInput.addEventListener('focus', () => {
                 if (this[`${searchInputId}_items`] && this[`${searchInputId}_items`].length > 0) {
                     this.renderDropdown(view, searchInputId, hiddenInputId, dropdownId, '', onSelectCallback, onLoadMoreCallback);
@@ -175,14 +196,22 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             });
             
             searchInput.addEventListener('input', (e) => {
-                const query = e.target.value;
+                const query = e.target.value.trim();
                 hiddenInput.value = '';
                 
-                if (this[`${searchInputId}_items`] && this[`${searchInputId}_items`].length > 0) {
-                    this.renderDropdown(view, searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback);
-                    dropdown.classList.add('show');
-                } else {
-                    dropdown.classList.remove('show');
+                clearTimeout(searchTimeout);
+                
+                if (query.length >= 2) {
+                    searchTimeout = setTimeout(() => {
+                        this.performSearch(view, searchInputId, query, onSelectCallback, onLoadMoreCallback);
+                    }, 300);
+                } else if (query.length === 0) {
+                    if (this[`${searchInputId}_items`] && this[`${searchInputId}_items`].length > 0) {
+                        this.renderDropdown(view, searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback);
+                        dropdown.classList.add('show');
+                    } else {
+                        dropdown.classList.remove('show');
+                    }
                 }
             });
             
@@ -244,7 +273,7 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
                 dropdown.appendChild(div);
             });
             
-            if (metadata.hasMore) {
+            if (metadata.hasMore && !lowerQuery) {
                 const loadMore = document.createElement('div');
                 loadMore.className = 'autocomplete-item load-more';
                 loadMore.textContent = `--- Load More (${metadata.currentCount} of ${metadata.totalCount}) ---`;
@@ -257,9 +286,107 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             }
         }
         
+        performSearch(view, searchInputId, query, onSelectCallback, onLoadMoreCallback) {
+            const dropdown = view.querySelector(`#${searchInputId}Dropdown`);
+            
+            if (searchInputId === 'searchContent' && this.currentLibraryId) {
+                this[`${searchInputId}_searchMode`] = true;
+                loading.show();
+                loadLibraryContent(this.currentLibraryId, 0, 50, query).then(result => {
+                    const items = result.Items || [];
+                    const totalCount = result.TotalRecordCount || items.length;
+                    
+                    this[`${searchInputId}_items`] = items.map(item => {
+                        const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
+                        const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
+                        return {
+                            id: item.Id,
+                            text: `${item.Name}${year}${type}`,
+                            type: item.Type,
+                            name: item.Name
+                        };
+                    });
+                    
+                    this[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: items.length,
+                        totalCount: totalCount
+                    };
+                    
+                    this.renderDropdown(view, searchInputId, `${searchInputId === 'searchContent' ? 'selectedItemId' : searchInputId === 'searchSeason' ? 'selectedSeasonId' : 'selectedEpisodeId'}`, `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                    loading.hide();
+                }).catch(() => {
+                    loading.hide();
+                    toast({ type: 'error', text: 'Error searching content.' });
+                });
+            } else if (searchInputId === 'searchSeason' && this.currentSeriesId) {
+                this[`${searchInputId}_searchMode`] = true;
+                loading.show();
+                loadSeasons(this.currentSeriesId, 0, 50, query).then(result => {
+                    const seasons = result.Items || [];
+                    const totalCount = result.TotalRecordCount || seasons.length;
+                    
+                    this[`${searchInputId}_items`] = seasons.map(season => {
+                        const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
+                        return {
+                            id: season.Id,
+                            text: `${season.Name || 'Season' + seasonNum}`,
+                            name: season.Name || 'Season' + seasonNum
+                        };
+                    });
+                    
+                    this[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: seasons.length,
+                        totalCount: totalCount
+                    };
+                    
+                    this.renderDropdown(view, searchInputId, 'selectedSeasonId', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                    loading.hide();
+                }).catch(() => {
+                    loading.hide();
+                    toast({ type: 'error', text: 'Error searching seasons.' });
+                });
+            } else if (searchInputId === 'searchEpisode' && this.currentSeasonId) {
+                const seriesId = view.querySelector('#selectedItemId').value;
+                this[`${searchInputId}_searchMode`] = true;
+                loading.show();
+                loadEpisodes(seriesId, this.currentSeasonId, 0, 50, query).then(result => {
+                    const episodes = result.Items || [];
+                    const totalCount = result.TotalRecordCount || episodes.length;
+                    
+                    this[`${searchInputId}_items`] = episodes.map(episode => {
+                        const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
+                        const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
+                        return {
+                            id: episode.Id,
+                            text: `${seasonNum}${epNum} - ${episode.Name}`,
+                            name: episode.Name
+                        };
+                    });
+                    
+                    this[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: episodes.length,
+                        totalCount: totalCount
+                    };
+                    
+                    this.renderDropdown(view, searchInputId, 'selectedEpisodeId', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                    loading.hide();
+                }).catch(() => {
+                    loading.hide();
+                    toast({ type: 'error', text: 'Error searching episodes.' });
+                });
+            }
+        }
+        
         onLibraryChange(view, libraryId) {
             if (!libraryId) {
                 this.searchContent_items = [];
+                this.searchContent_searchMode = false;
                 view.querySelector('#searchContent').value = '';
                 view.querySelector('#selectedItemId').value = '';
                 this.hideSeriesControls(view);
@@ -268,6 +395,7 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
 
             this.currentLibraryId = libraryId;
             this.libraryContentOffset = 0;
+            this.searchContent_searchMode = false;
             
             const searchInput = view.querySelector('#searchContent');
             if (searchInput) searchInput.value = '';
@@ -314,6 +442,7 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
             if (itemData.type === 'Series') {
                 this.currentSeriesId = itemData.id;
                 this.seasonsOffset = 0;
+                this.searchSeason_searchMode = false;
                 
                 const searchSeason = view.querySelector('#searchSeason');
                 const searchEpisode = view.querySelector('#searchEpisode');
@@ -357,7 +486,7 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
 
         onSeasonSelect(view, itemData) {
             if (!itemData.id) {
-                this.searchEpisode_items = [];
+                this.searchEpisode_searchMode = false;
                 view.querySelector('#searchEpisode').value = '';
                 view.querySelector('#selectedEpisodeId').value = '';
                 return;
@@ -365,6 +494,8 @@ define(['baseView', 'loading', 'toast', 'emby-input', 'emby-button', 'emby-check
 
             const seriesId = view.querySelector('#selectedItemId').value;
             this.currentSeasonId = itemData.id;
+            this.episodesOffset = 0;
+            this.searchEpisode_searchMode = falseitemData.id;
             this.episodesOffset = 0;
             
             const searchEpisode = view.querySelector('#searchEpisode');
