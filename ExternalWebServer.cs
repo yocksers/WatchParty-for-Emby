@@ -849,6 +849,14 @@ namespace WatchPartyForEmby
                 }
                 
                 var embyPath = request.Url.AbsolutePath.Substring("/api/emby".Length);
+
+                if (string.IsNullOrEmpty(embyPath) || embyPath.Contains("..") || embyPath.Contains("//"))
+                {
+                    response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    await WriteResponse(response, "{\"error\":\"Invalid path\"}");
+                    return;
+                }
+
                 using (var client = new System.Net.Http.HttpClient())
                 {
                     client.Timeout = TimeSpan.FromSeconds(30);

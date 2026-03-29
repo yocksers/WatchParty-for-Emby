@@ -10,7 +10,8 @@ namespace WatchPartyForEmby
     {
         private const int SaltSize = 16;
         private const int HashSize = 32;
-        private const int Iterations = 10000;
+        private const int Iterations = 600000;
+        private const int LegacyIterations = 10000;
 
         public static string HashPassword(string password)
         {
@@ -43,16 +44,20 @@ namespace WatchPartyForEmby
                     var salt = new byte[SaltSize];
                     Array.Copy(hashBytes, 0, salt, 0, SaltSize);
                     
-                    using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations))
+                    foreach (var iterations in new[] { Iterations, LegacyIterations })
                     {
-                        var testHash = pbkdf2.GetBytes(HashSize);
-                        for (int i = 0; i < HashSize; i++)
+                        using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, iterations))
                         {
-                            if (hashBytes[i + SaltSize] != testHash[i])
-                                return false;
+                            var testHash = pbkdf2.GetBytes(HashSize);
+                            bool match = true;
+                            for (int i = 0; i < HashSize; i++)
+                            {
+                                if (hashBytes[i + SaltSize] != testHash[i]) { match = false; break; }
+                            }
+                            if (match) return true;
                         }
-                        return true;
                     }
+                    return false;
                 }
                 // Fall back to old SHA-256 verification for backward compatibility
                 else if (hashBytes.Length == 32)
@@ -136,7 +141,6 @@ namespace WatchPartyForEmby
         public List<string> AllowedUserIds { get; set; }
         public string HostUserId { get; set; }
         public string MasterUserId { get; set; }
-        public string Password { get; set; }
         public string PasswordHash { get; set; }
         public bool IsWaitingRoom { get; set; }
         public DateTime? ScheduledStartTime { get; set; }

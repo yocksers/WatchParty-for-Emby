@@ -540,21 +540,26 @@
             const lockIcon = party.RequiresPassword ? '🔒 ' : '';
             const itemId = party.ItemId || '';
             const hostUserName = await lookupUserName(party.HostUserName);
+            const safeName = escapeHtml(party.ItemName || 'Unnamed Party');
+            const safeNameForAttr = safeName.replace(/'/g, '&#39;');
+            const safeType = escapeHtml(party.ItemType || 'Unknown');
+            const safeHost = escapeHtml(hostUserName);
+            const safeItemId = escapeHtml(itemId).replace(/'/g, '&#39;');
             
             return `
                 <div class="party-card ${statusClass}">
                     <div class="party-header">
-                        <div class="party-title">${lockIcon}${party.ItemName || 'Unnamed Party'}</div>
+                        <div class="party-title">${lockIcon}${safeName}</div>
                         <span class="status-badge ${statusClass}">${statusText}</span>
                     </div>
-                    <div class="party-info" onclick="joinParty('${party.Id}', ${party.RequiresPassword}, '${escapeHtml(party.ItemName || 'Unnamed Party')}')" style="cursor: pointer;">
+                    <div class="party-info" onclick="joinParty('${party.Id}', ${party.RequiresPassword}, '${safeNameForAttr}')" style="cursor: pointer;">
                         <div class="info-row">
                             <span class="info-label">Type:</span>
-                            <span class="info-value">${party.ItemType || 'Unknown'}</span>
+                            <span class="info-value">${safeType}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Master:</span>
-                            <span class="info-value">${hostUserName}</span>
+                            <span class="info-value">${safeHost}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Participants:</span>
@@ -573,8 +578,8 @@
                         </div>
                     </div>
                     <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #444; display: flex; gap: 10px;">
-                        <button onclick="playVideo(event, '${party.Id}', '${itemId}')" style="flex: 1; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">▶️ Play</button>
-                        <button onclick="deleteParty(event, '${party.Id}', '${escapeHtml(party.ItemName || 'Unnamed Party')}')" style="flex: 1; padding: 8px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Delete</button>
+                        <button onclick="playVideo(event, '${party.Id}', '${safeItemId}')" style="flex: 1; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">▶️ Play</button>
+                        <button onclick="deleteParty(event, '${party.Id}', '${safeNameForAttr}')" style="flex: 1; padding: 8px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Delete</button>
                     </div>
                 </div>
             `;
@@ -762,13 +767,14 @@
                 
                 const loginData = await loginResponse.json();
                 const sessionToken = loginData.token;
+                const csrfToken = loginData.csrfToken;
                 
-                // Now delete the party with session token
                 const response = await fetch(`${webServerUrl}/api/parties/delete`, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'X-Session-Token': sessionToken
+                        'X-Session-Token': sessionToken,
+                        'X-CSRF-Token': csrfToken || ''
                     },
                     body: JSON.stringify({
                         partyId: partyId
@@ -808,12 +814,12 @@
                     throw new Error('Please enter an Emby server URL');
                 }
                 
-                const url = password 
-                    ? `${webServerUrl}/api/parties?password=${encodeURIComponent(password)}` 
-                    : `${webServerUrl}/api/parties`;
+                const url = `${webServerUrl}/api/parties`;
                 
                 console.log('Fetching from:', url);
-                const response = await fetch(url);
+                const response = await fetch(url, {
+                    headers: password ? { 'X-Party-Password': password } : {}
+                });
                 
                 console.log('Response status:', response.status);
                 if (!response.ok) {
@@ -1229,8 +1235,8 @@
                     return;
                 }
                 
-                // Store session token for subsequent requests
                 sessionStorage.setItem('watchPartySessionToken', sessionToken);
+                sessionStorage.setItem('watchPartyCsrfToken', data.csrfToken || '');
             } catch (err) {
                 alert('Error verifying password: ' + err.message);
                 return;
@@ -1684,11 +1690,13 @@
                     maxLatencyCompensationMs: parseInt(document.getElementById('newMaxLatencyCompensationMs').value)
                 };
                 
+                const csrfToken = sessionStorage.getItem('watchPartyCsrfToken');
                 const response = await fetch(`${webServerUrl}/api/parties/create`, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'X-Session-Token': sessionToken
+                        'X-Session-Token': sessionToken,
+                        'X-CSRF-Token': csrfToken || ''
                     },
                     body: JSON.stringify(partyData)
                 });
