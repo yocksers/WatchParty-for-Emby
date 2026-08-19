@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Party Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+        
+        .input-group {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: #999;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 1rem;
+        }
+        
+        .input-group button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .input-group button:hover {
+            background: #45a049;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            margin-top: 10px;
+            color: #999;
+            font-size: 0.9rem;
+        }
+        
+        .party-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .party-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            border: 2px solid #3a3a3a;
+        }
+        
+        .party-card.active {
+            border-color: #4CAF50;
+        }
+        
+        .party-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .party-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-badge.active {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status-badge.inactive {
+            background: #666;
+            color: #ccc;
+        }
+        
+        .party-info {
+            margin-bottom: 15px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 0.9rem;
+        }
+        
+        .info-label {
+            color: #999;
+        }
+        
+        .info-value {
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .error {
+            background: #d32f2f;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+        
+        .load-more-option {
+            font-style: italic;
+            color: #4CAF50 !important;
+            background: #2a2a2a !important;
+        }
+        
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+        
+        .autocomplete-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            color: #e0e0e0;
+            transition: background 0.2s;
+        }
+        
+        .autocomplete-item:hover {
+            background: #3a3a3a;
+        }
+        
+        .autocomplete-item.load-more {
+            color: #4CAF50;
+            font-style: italic;
+            text-align: center;
+        }
+        
+        .autocomplete-item.selected {
+            background: #3a3a3a;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+        
+        .autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Watch Party Dashboard</h1>
+        
+        <div class="input-group">
+            <label for="serverUrl">Emby Server URL:</label>
+            <input type="text" id="serverUrl" placeholder="http://localhost:8096" value="http://localhost:8096">
+            <small style="display: block; color: #999; margin-top: 5px;">Change this if your Emby server uses a different port</small>
+            
+            <label for="password" style="margin-top: 15px;">Password (if required):</label>
+            <input type="password" id="password" placeholder="Leave empty for public parties">
+            
+            <button id="loadButton">Load Parties</button>
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalParties">0</div>
+                <div class="stat-label">Total Parties</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activeParties">0</div>
+                <div class="stat-label">Active Parties</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalParticipants">0</div>
+                <div class="stat-label">Total Participants</div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">Click "Load Parties" to start</div>
+        
+        <div class="party-grid" id="partyGrid" style="display: none;"></div>
+        
+        <button class="refresh-btn" id="refreshButton" title="Refresh">⟳</button>
+        <button class="refresh-btn" id="createButton" title="Create Party" style="right: 110px;">+</button>
+    </div>
+
+    <div id="createPartyModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; overflow-y: auto;">
+        <div style="background: #1a1a1a; padding: 30px; border-radius: 8px; max-width: 800px; width: 90%; margin: 20px auto; max-height: 90vh; overflow-y: auto;">
+            <h2 style="margin-top: 0;">Create New Watch Party</h2>
+            
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Content Selection</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Source Library:</label>
+                <select id="newSourceLibrary" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="">Loading libraries...</option>
+                </select>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Select Content:</label>
+                <div style="position: relative;">
+                    <input type="text" id="searchContent" placeholder="Search movies and TV shows..." autocomplete="off" style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <div id="searchContentDropdown" class="autocomplete-dropdown"></div>
+                    <input type="hidden" id="newContentItem">
+                </div>
+            </div>
+            <div id="seriesControls" style="display: none;">
+                <div style="margin: 15px 0;">
+                    <label style="display: block; margin-bottom: 5px;">Season:</label>
+                    <div style="position: relative;">
+                        <input type="text" id="searchSeason" placeholder="Search seasons..." autocomplete="off" style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <div id="searchSeasonDropdown" class="autocomplete-dropdown"></div>
+                        <input type="hidden" id="newSeason">
+                    </div>
+                </div>
+                <div style="margin: 15px 0;">
+                    <label style="display: block; margin-bottom: 5px;">Episode:</label>
+                    <div style="position: relative;">
+                        <input type="text" id="searchEpisode" placeholder="Search episodes..." autocomplete="off" style="width: 100%; padding: 8px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <div id="searchEpisodeDropdown" class="autocomplete-dropdown"></div>
+                        <input type="hidden" id="newEpisode">
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Party Settings</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newIsActive" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Activate party immediately</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Max Participants:</label>
+                <input type="number" id="newMaxParticipants" value="50" min="2" max="100" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Party Password (optional):</label>
+                <input type="password" id="newPartyPassword" placeholder="Leave empty for no password" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">User Management</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Master User (controls playback):</label>
+                <select id="newMasterUser" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="">Loading users...</option>
+                </select>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Allowed Users (hold Ctrl to select multiple, leave empty for all):</label>
+                <select id="newAllowedUsers" multiple size="5" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="">Loading users...</option>
+                </select>
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Waiting Room</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newWaitingRoom" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Enable waiting room (users must mark ready)</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newAutoStart" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Auto-start when ready</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Min ready count for auto-start:</label>
+                <input type="number" id="newMinReady" value="1" min="1" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Playback Control</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Pause Control:</label>
+                <select id="newPauseControl" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="Anyone">Anyone can pause</option>
+                    <option value="HostOnly">Host only</option>
+                    <option value="Disabled">Disabled</option>
+                </select>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newHostOnlySeek" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Host only can seek</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newLockSeekAhead" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Lock seek ahead of master position</span>
+                </label>
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Sync Settings</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Sync tolerance (seconds):</label>
+                <input type="number" id="newSyncTolerance" value="10" min="1" max="60" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Max buffer threshold (seconds):</label>
+                <input type="number" id="newMaxBuffer" value="30" min="5" max="120" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Inactive User Management</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newAutoKick" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Auto-kick inactive users</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Inactive timeout (minutes):</label>
+                <input type="number" id="newInactiveTimeout" value="15" min="1" max="120" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <h3 style="color: #4CAF50; margin-top: 20px; margin-bottom: 10px; font-size: 1.2rem;">Network Latency Compensation</h3>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newEnableNetworkLatencyCompensation" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Enable network latency compensation</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Latency measurement interval (seconds):</label>
+                <input type="number" id="newNetworkLatencyMeasurementIntervalSeconds" value="30" min="10" max="300" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="newAutoAdjustForLatency" checked style="margin-right: 8px; width: 20px; height: 20px;">
+                    <span>Auto-adjust for latency</span>
+                </label>
+            </div>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Maximum latency compensation (ms):</label>
+                <input type="number" id="newMaxLatencyCompensationMs" value="5000" min="100" max="10000" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="confirmCreateButton" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Create Party</button>
+                <button id="cancelCreateButton" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Password Input Modal -->
+    <div id="passwordModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1001; align-items: center; justify-content: center;">
+        <div style="background: #1a1a1a; padding: 30px; border-radius: 8px; max-width: 400px; width: 90%;">
+            <h2 id="passwordModalTitle" style="margin-top: 0;">Enter Password</h2>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;" id="passwordModalLabel">Password:</label>
+                <input type="password" id="passwordModalInput" placeholder="Enter password" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="passwordModalOk" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">OK</button>
+                <button id="passwordModalCancel" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Username Input Modal -->
+    <div id="usernameModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1001; align-items: center; justify-content: center;">
+        <div style="background: #1a1a1a; padding: 30px; border-radius: 8px; max-width: 400px; width: 90%;">
+            <h2 style="margin-top: 0;">Enter Your Name</h2>
+            <div style="margin: 15px 0;">
+                <label style="display: block; margin-bottom: 5px;">Name for chat:</label>
+                <input type="text" id="usernameModalInput" placeholder="Enter your name" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="usernameModalOk" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">OK</button>
+                <button id="usernameModalCancel" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        console.log('External Dashboard loaded');
+        
+        function formatTime(ticks) {
+            if (!ticks || ticks === 0) {
+                return '0:00';
+            }
+            const totalSeconds = Math.floor(ticks / 10000000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            return `${minutes}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        let userNameCache = {};
+        
+        async function lookupUserName(userId) {
+            if (!userId || userId === 'Not set') {
+                return 'Not set';
+            }
+            
+            if (userNameCache[userId]) {
+                return userNameCache[userId];
+            }
+            
+            try {
+                const webServerUrl = window.location.origin;
+                const response = await fetch(`${webServerUrl}/api/users/lookup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    userNameCache[userId] = data.userName;
+                    return data.userName;
+                }
+            } catch (error) {
+                console.error('Failed to lookup username:', error);
+            }
+            
+            return userId; // Fallback to user ID
+        }
+        
+        async function createPartyCard(party) {
+            const statusClass = party.IsActive ? 'active' : 'inactive';
+            const statusText = party.IsActive ? 'Active' : 'Inactive';
+            const lockIcon = party.RequiresPassword ? '🔒 ' : '';
+            const itemId = party.ItemId || '';
+            const hostUserName = await lookupUserName(party.HostUserName);
+            const safeName = escapeHtml(party.ItemName || 'Unnamed Party');
+            const safeNameForAttr = safeName.replace(/'/g, '&#39;');
+            const safeType = escapeHtml(party.ItemType || 'Unknown');
+            const safeHost = escapeHtml(hostUserName);
+            const safeItemId = escapeHtml(itemId).replace(/'/g, '&#39;');
+            
+            return `
+                <div class="party-card ${statusClass}">
+                    <div class="party-header">
+                        <div class="party-title">${lockIcon}${safeName}</div>
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="party-info" onclick="joinParty('${party.Id}', ${party.RequiresPassword}, '${safeNameForAttr}')" style="cursor: pointer;">
+                        <div class="info-row">
+                            <span class="info-label">Type:</span>
+                            <span class="info-value">${safeType}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Master:</span>
+                            <span class="info-value">${safeHost}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Participants:</span>
+                            <span class="info-value">${party.ParticipantCount || 0} / ${party.MaxParticipants}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Position:</span>
+                            <span class="info-value">${formatTime(party.CurrentPositionTicks)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value">${party.IsPlaying ? '▶ Playing' : '⏸ Paused'}</span>
+                        </div>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #444; text-align: center; color: #4CAF50;">
+                            💬 Click to join chat
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #444; display: flex; gap: 10px;">
+                        <button onclick="playVideo(event, '${party.Id}', '${safeItemId}')" style="flex: 1; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">▶️ Play</button>
+                        <button onclick="deleteParty(event, '${party.Id}', '${safeNameForAttr}')" style="flex: 1; padding: 8px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Delete</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showPasswordModal(title, label) {
+            return new Promise((resolve, reject) => {
+                const modal = document.getElementById('passwordModal');
+                const titleElement = document.getElementById('passwordModalTitle');
+                const labelElement = document.getElementById('passwordModalLabel');
+                const input = document.getElementById('passwordModalInput');
+                const okBtn = document.getElementById('passwordModalOk');
+                const cancelBtn = document.getElementById('passwordModalCancel');
+                
+                titleElement.textContent = title;
+                labelElement.textContent = label;
+                input.value = '';
+                modal.style.display = 'flex';
+                input.focus();
+                
+                const handleOk = () => {
+                    const value = input.value;
+                    cleanup();
+                    resolve(value);
+                };
+                
+                const handleCancel = () => {
+                    cleanup();
+                    resolve(null);
+                };
+                
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter') handleOk();
+                    if (e.key === 'Escape') handleCancel();
+                };
+                
+                const cleanup = () => {
+                    modal.style.display = 'none';
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    input.removeEventListener('keypress', handleKeyPress);
+                };
+                
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+                input.addEventListener('keypress', handleKeyPress);
+            });
+        }
+        
+        function showUsernameModal() {
+            return new Promise((resolve, reject) => {
+                const modal = document.getElementById('usernameModal');
+                const input = document.getElementById('usernameModalInput');
+                const okBtn = document.getElementById('usernameModalOk');
+                const cancelBtn = document.getElementById('usernameModalCancel');
+                
+                input.value = '';
+                modal.style.display = 'flex';
+                input.focus();
+                
+                const handleOk = () => {
+                    const value = input.value.trim();
+                    cleanup();
+                    resolve(value);
+                };
+                
+                const handleCancel = () => {
+                    cleanup();
+                    resolve(null);
+                };
+                
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter') handleOk();
+                    if (e.key === 'Escape') handleCancel();
+                };
+                
+                const cleanup = () => {
+                    modal.style.display = 'none';
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    input.removeEventListener('keypress', handleKeyPress);
+                };
+                
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+                input.addEventListener('keypress', handleKeyPress);
+            });
+        }
+        
+        async function joinParty(partyId, requiresPassword, partyName) {
+            if (requiresPassword) {
+                const password = await showPasswordModal(
+                    'Party Password Required',
+                    `Enter password for "${partyName}":`
+                );
+                if (!password) return;
+                
+                sessionStorage.setItem(`party_${partyId}_password`, password);
+            }
+            
+            const username = await showUsernameModal();
+            if (!username) {
+                alert('Username is required to join the chat!');
+                return;
+            }
+            
+            const chatUrl = `chat.html?partyId=${encodeURIComponent(partyId)}&username=${encodeURIComponent(username)}&partyName=${encodeURIComponent(partyName)}`;
+            window.open(chatUrl, `chat_${partyId}`, 'width=500,height=700,resizable=yes,scrollbars=yes');
+        }
+        
+        let cachedServerId = null;
+        
+        async function getServerId() {
+            if (cachedServerId) {
+                return cachedServerId;
+            }
+            
+            try {
+                const embyServerUrl = document.getElementById('serverUrl').value.trim() || 'http://localhost:8096';
+                const response = await fetch(`${embyServerUrl}/emby/System/Info/Public`);
+                if (response.ok) {
+                    const data = await response.json();
+                    cachedServerId = data.Id;
+                    return cachedServerId;
+                }
+            } catch (error) {
+                console.error('Failed to fetch server ID:', error);
+            }
+            return null;
+        }
+        
+        async function playVideo(event, partyId, itemId) {
+            event.stopPropagation();
+            
+            if (!itemId) {
+                alert('No video selected for this party');
+                return;
+            }
+            
+            const embyServerUrl = document.getElementById('serverUrl').value.trim() || 'http://localhost:8096';
+            const serverId = await getServerId();
+            
+            // Open Emby web player in a new tab
+            const playUrl = serverId 
+                ? `${embyServerUrl}/web/index.html#!/item?id=${encodeURIComponent(itemId)}&context=home&serverId=${serverId}`
+                : `${embyServerUrl}/web/index.html#!/item?id=${encodeURIComponent(itemId)}&context=home`;
+            window.open(playUrl, '_blank');
+        }
+        
+        async function deleteParty(event, partyId, partyName) {
+            event.stopPropagation();
+            
+            if (!confirm(`Are you sure you want to delete "${partyName}"?`)) {
+                return;
+            }
+            
+            const adminPassword = await showPasswordModal(
+                'Admin Authentication Required',
+                'Enter admin password to confirm deletion:'
+            );
+            if (!adminPassword) {
+                return;
+            }
+            
+            const webServerUrl = window.location.origin;
+            
+            // Authenticate to get session token
+            try {
+                const loginResponse = await fetch(`${webServerUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminPassword: adminPassword })
+                });
+                
+                if (!loginResponse.ok) {
+                    alert('Invalid admin password');
+                    return;
+                }
+                
+                const loginData = await loginResponse.json();
+                const sessionToken = loginData.token;
+                const csrfToken = loginData.csrfToken;
+                
+                const response = await fetch(`${webServerUrl}/api/parties/delete`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Session-Token': sessionToken,
+                        'X-CSRF-Token': csrfToken || ''
+                    },
+                    body: JSON.stringify({
+                        partyId: partyId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete party');
+                }
+                
+                alert('Party deleted successfully!');
+                loadParties();
+            } catch (err) {
+                alert(`Error deleting party: ${err.message}`);
+            }
+        }
+        
+        async function loadParties() {
+            try {
+                const embyServerUrl = document.getElementById('serverUrl').value.trim();
+                let password = document.getElementById('password').value.trim();
+                const webServerUrl = window.location.origin;
+                
+                // If no password entered, try to use session-stored password
+                if (!password) {
+                    const sessionPassword = sessionStorage.getItem('watchPartyPassword');
+                    if (sessionPassword) {
+                        password = sessionPassword;
+                        document.getElementById('password').value = password;
+                    }
+                }
+                
+                localStorage.setItem('watchPartyServer', embyServerUrl);
+                
+                if (!embyServerUrl) {
+                    throw new Error('Please enter an Emby server URL');
+                }
+                
+                const url = `${webServerUrl}/api/parties`;
+                
+                console.log('Fetching from:', url);
+                const response = await fetch(url, {
+                    headers: password ? { 'X-Party-Password': password } : {}
+                });
+                
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    // If unauthorized/forbidden, password is wrong - clear it and ask user to re-enter
+                    if (response.status === 401 || response.status === 403) {
+                        sessionStorage.removeItem('watchPartyPassword');
+                        document.getElementById('password').value = '';
+                        throw new Error('Invalid password. Please enter the correct password.');
+                    }
+                    const errorText = await response.text();
+                    console.error('Response error:', errorText);
+                    throw new Error(`Failed to load parties (${response.status}): ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Received data:', data);
+                const parties = data.Parties || [];
+                
+                // Password was correct, save it to session storage (cleared when tab closes)
+                if (password) {
+                    sessionStorage.setItem('watchPartyPassword', password);
+                }
+                
+                // Debug: Log each party's ItemId
+                parties.forEach((party, index) => {
+                    console.log(`Party ${index}: Name="${party.ItemName}", ItemId="${party.ItemId}"`);
+                });
+                
+                document.getElementById('totalParties').textContent = parties.length;
+                document.getElementById('activeParties').textContent = parties.filter(p => p.IsActive).length;
+                document.getElementById('totalParticipants').textContent = parties.reduce((sum, p) => sum + (p.ParticipantCount || 0), 0);
+                
+                const grid = document.getElementById('partyGrid');
+                const loading = document.getElementById('loading');
+                const error = document.getElementById('error');
+                
+                if (parties.length === 0) {
+                    loading.style.display = 'block';
+                    loading.textContent = 'No watch parties found';
+                    grid.style.display = 'none';
+                } else {
+                    loading.style.display = 'none';
+                    grid.style.display = 'grid';
+                    // Use Promise.all to wait for all party cards to be created
+                    const partyCards = await Promise.all(parties.map(party => createPartyCard(party)));
+                    grid.innerHTML = partyCards.join('');
+                }
+                
+                error.style.display = 'none';
+            } catch (err) {
+                console.error('Error loading parties:', err);
+                const errorEl = document.getElementById('error');
+                errorEl.textContent = `Error: ${err.message}. Check browser console (F12) for details.`;
+                errorEl.style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        window.addEventListener('DOMContentLoaded', async function() {
+            console.log('DOM loaded, setting up event listeners');
+            
+            // Fetch the configured external server URL (public endpoint - no auth required)
+            try {
+                const webServerUrl = window.location.origin;
+                const response = await fetch(`${webServerUrl}/api/config/external-url`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.externalServerUrl) {
+                        document.getElementById('serverUrl').value = data.externalServerUrl;
+                        console.log('Loaded external server URL from config:', data.externalServerUrl);
+                        // Don't override with localStorage if we have a configured URL
+                        localStorage.setItem('watchPartyServer', data.externalServerUrl);
+                    } else {
+                        // Fallback to default behavior if no external URL configured
+                        const currentOrigin = window.location.origin;
+                        const currentPort = window.location.port;
+                        const defaultEmbyUrl = (currentPort && currentPort !== '8096') ? 'http://localhost:8096' : currentOrigin;
+                        
+                        const saved = localStorage.getItem('watchPartyServer');
+                        document.getElementById('serverUrl').value = saved || defaultEmbyUrl;
+                    }
+                } else {
+                    throw new Error('Failed to fetch config');
+                }
+            } catch (error) {
+                console.error('Error loading external server URL:', error);
+                // Fallback to default behavior
+                const currentOrigin = window.location.origin;
+                const currentPort = window.location.port;
+                const defaultEmbyUrl = (currentPort && currentPort !== '8096') ? 'http://localhost:8096' : currentOrigin;
+                
+                const saved = localStorage.getItem('watchPartyServer');
+                document.getElementById('serverUrl').value = saved || defaultEmbyUrl;
+            }
+            
+            // Load password from session storage (cleared when browser tab/window closes)
+            const sessionPwd = sessionStorage.getItem('watchPartyPassword');
+            if (sessionPwd) document.getElementById('password').value = sessionPwd;
+            
+            // Clean up any old passwords stored in localStorage
+            localStorage.removeItem('watchPartyPassword');
+            
+            const loadBtn = document.getElementById('loadButton');
+            const refreshBtn = document.getElementById('refreshButton');
+            
+            if (loadBtn) {
+                loadBtn.addEventListener('click', loadParties);
+                console.log('Load button listener attached');
+            } else {
+                console.error('Load button not found!');
+            }
+            
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', loadParties);
+                console.log('Refresh button listener attached');
+            } else {
+                console.error('Refresh button not found!');
+            }
+            
+            const createBtn = document.getElementById('createButton');
+            if (createBtn) {
+                createBtn.addEventListener('click', showCreatePartyModal);
+            }
+            
+            document.getElementById('cancelCreateButton').addEventListener('click', hideCreatePartyModal);
+            document.getElementById('confirmCreateButton').addEventListener('click', createParty);
+            
+            document.getElementById('newSourceLibrary').addEventListener('change', function(e) {
+                const libraryId = e.target.value;
+                if (libraryId) {
+                    window.currentLibraryId = libraryId;
+                    window.contentOffset = 0;
+                    document.getElementById('searchContent').value = '';
+                    document.getElementById('newContentItem').value = '';
+                    loadContentForCreate(libraryId);
+                } else {
+                    window.contentItems = [];
+                    document.getElementById('searchContent').value = '';
+                    document.getElementById('newContentItem').value = '';
+                }
+            });
+            
+            setupAutocomplete('searchContent', 'newContentItem', 'searchContentDropdown', function(itemData) {
+                if (itemData.type === 'Series') {
+                    window.currentSeriesId = itemData.id;
+                    window.seasonsOffset = 0;
+                    document.getElementById('searchSeason').value = '';
+                    document.getElementById('newSeason').value = '';
+                    document.getElementById('searchEpisode').value = '';
+                    document.getElementById('newEpisode').value = '';
+                    document.getElementById('seriesControls').style.display = 'block';
+                    loadSeasonsForCreate(itemData.id);
+                } else {
+                    document.getElementById('seriesControls').style.display = 'none';
+                }
+            }, function() {
+                loadMoreContent();
+            });
+            
+            setupAutocomplete('searchSeason', 'newSeason', 'searchSeasonDropdown', function(itemData) {
+                const seriesId = document.getElementById('newContentItem').value;
+                if (itemData.id && seriesId) {
+                    window.currentSeasonId = itemData.id;
+                    window.episodesOffset = 0;
+                    document.getElementById('searchEpisode').value = '';
+                    document.getElementById('newEpisode').value = '';
+                    loadEpisodesForCreate(seriesId, itemData.id);
+                }
+            }, function() {
+                loadMoreSeasons();
+            });
+            
+            setupAutocomplete('searchEpisode', 'newEpisode', 'searchEpisodeDropdown', function(itemData) {
+            }, function() {
+                loadMoreEpisodes();
+            });
+        });
+        
+        function setupAutocomplete(searchInputId, hiddenInputId, dropdownId, onSelectCallback, onLoadMoreCallback) {
+            const searchInput = document.getElementById(searchInputId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            const dropdown = document.getElementById(dropdownId);
+            
+            let searchTimeout;
+            
+            searchInput.addEventListener('focus', function() {
+                if (window[`${searchInputId}_items`] && window[`${searchInputId}_items`].length > 0) {
+                    renderDropdown(searchInputId, hiddenInputId, dropdownId, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                }
+            });
+            
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.trim();
+                hiddenInput.value = '';
+                
+                clearTimeout(searchTimeout);
+                
+                if (query.length >= 2) {
+                    searchTimeout = setTimeout(function() {
+                        performSearch(searchInputId, query, onSelectCallback, onLoadMoreCallback);
+                    }, 300);
+                } else if (query.length === 0) {
+                    if (window[`${searchInputId}_items`] && window[`${searchInputId}_items`].length > 0) {
+                        renderDropdown(searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback);
+                        dropdown.classList.add('show');
+                    } else {
+                        dropdown.classList.remove('show');
+                    }
+                }
+            });
+            
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.remove('show');
+                }
+            });
+        }
+        
+        function renderDropdown(searchInputId, hiddenInputId, dropdownId, query, onSelectCallback, onLoadMoreCallback) {
+            const searchInput = document.getElementById(searchInputId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            const dropdown = document.getElementById(dropdownId);
+            const items = window[`${searchInputId}_items`] || [];
+            const metadata = window[`${searchInputId}_metadata`] || {};
+            
+            const lowerQuery = query.toLowerCase().trim();
+            const filteredItems = items.filter(item => {
+                if (!lowerQuery) return true;
+                return item.text.toLowerCase().includes(lowerQuery);
+            });
+            
+            dropdown.innerHTML = '';
+            
+            if (filteredItems.length === 0 && !metadata.hasMore) {
+                const noResults = document.createElement('div');
+                noResults.className = 'autocomplete-item';
+                noResults.textContent = 'No results found';
+                noResults.style.textAlign = 'center';
+                noResults.style.color = '#999';
+                dropdown.appendChild(noResults);
+                return;
+            }
+            
+            filteredItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.textContent = item.text;
+                div.dataset.value = item.id;
+                
+                div.addEventListener('click', function() {
+                    searchInput.value = item.text;
+                    hiddenInput.value = item.id;
+                    hiddenInput.dataset.type = item.type || '';
+                    hiddenInput.dataset.name = item.name || item.text;
+                    dropdown.classList.remove('show');
+                    
+                    if (onSelectCallback) {
+                        onSelectCallback({
+                            id: item.id,
+                            text: item.text,
+                            type: item.type,
+                            name: item.name || item.text
+                        });
+                    }
+                });
+                
+                dropdown.appendChild(div);
+            });
+            
+            if (metadata.hasMore && !lowerQuery) {
+                const loadMore = document.createElement('div');
+                loadMore.className = 'autocomplete-item load-more';
+                loadMore.textContent = `--- Load More (${metadata.currentCount} of ${metadata.totalCount}) ---`;
+                loadMore.addEventListener('click', function() {
+                    if (onLoadMoreCallback) {
+                        onLoadMoreCallback();
+                    }
+                });
+                dropdown.appendChild(loadMore);
+            }
+        }
+        
+        async function performSearch(searchInputId, query, onSelectCallback, onLoadMoreCallback) {
+            const dropdown = document.getElementById(`${searchInputId}Dropdown`);
+            const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            
+            if (searchInputId === 'searchContent' && window.currentLibraryId) {
+                window[`${searchInputId}_searchMode`] = true;
+                try {
+                    const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${window.currentLibraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=0&Limit=50&SearchTerm=${encodeURIComponent(query)}`, {
+                        headers: { 'X-Session-Token': sessionToken }
+                    });
+                    const data = await response.json();
+                    const items = data.Items || [];
+                    const totalCount = data.TotalRecordCount || items.length;
+                    
+                    window[`${searchInputId}_items`] = items.map(item => {
+                        const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
+                        const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
+                        return {
+                            id: item.Id,
+                            text: `${item.Name}${year}${type}`,
+                            type: item.Type,
+                            name: item.Name
+                        };
+                    });
+                    
+                    window[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: items.length,
+                        totalCount: totalCount
+                    };
+                    
+                    renderDropdown(searchInputId, searchInputId === 'searchContent' ? 'newContentItem' : searchInputId === 'searchSeason' ? 'newSeason' : 'newEpisode', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } catch (err) {
+                    console.error('Error searching content:', err);
+                }
+            } else if (searchInputId === 'searchSeason' && window.currentSeriesId) {
+                window[`${searchInputId}_searchMode`] = true;
+                try {
+                    const response = await fetch(`${webServerUrl}/api/emby/Shows/${window.currentSeriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=0&Limit=50&SearchTerm=${encodeURIComponent(query)}`, {
+                        headers: { 'X-Session-Token': sessionToken }
+                    });
+                    const data = await response.json();
+                    const seasons = data.Items || [];
+                    const totalCount = data.TotalRecordCount || seasons.length;
+                    
+                    window[`${searchInputId}_items`] = seasons.map(season => {
+                        const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
+                        return {
+                            id: season.Id,
+                            text: `${season.Name || 'Season' + seasonNum}`,
+                            name: season.Name || 'Season' + seasonNum
+                        };
+                    });
+                    
+                    window[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: seasons.length,
+                        totalCount: totalCount
+                    };
+                    
+                    renderDropdown(searchInputId, 'newSeason', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } catch (err) {
+                    console.error('Error searching seasons:', err);
+                }
+            } else if (searchInputId === 'searchEpisode' && window.currentSeasonId) {
+                const seriesId = window.currentSeriesId;
+                window[`${searchInputId}_searchMode`] = true;
+                try {
+                    const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${window.currentSeasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=0&Limit=50&SearchTerm=${encodeURIComponent(query)}`, {
+                        headers: { 'X-Session-Token': sessionToken }
+                    });
+                    const data = await response.json();
+                    const episodes = data.Items || [];
+                    const totalCount = data.TotalRecordCount || episodes.length;
+                    
+                    window[`${searchInputId}_items`] = episodes.map(episode => {
+                        const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
+                        const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
+                        return {
+                            id: episode.Id,
+                            text: `${seasonNum}${epNum} - ${episode.Name}`,
+                            name: episode.Name
+                        };
+                    });
+                    
+                    window[`${searchInputId}_metadata`] = {
+                        hasMore: false,
+                        currentCount: episodes.length,
+                        totalCount: totalCount
+                    };
+                    
+                    renderDropdown(searchInputId, 'newEpisode', `${searchInputId}Dropdown`, '', onSelectCallback, onLoadMoreCallback);
+                    dropdown.classList.add('show');
+                } catch (err) {
+                    console.error('Error searching episodes:', err);
+                }
+            }
+        }
+        
+        async function showCreatePartyModal() {
+            const adminPassword = await showPasswordModal(
+                'Admin Authentication Required',
+                'Enter admin password to create a party:'
+            );
+            if (!adminPassword) {
+                return;
+            }
+            
+            // Authenticate and get session token
+            const webServerUrl = window.location.origin;
+            try {
+                const response = await fetch(`${webServerUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminPassword: adminPassword })
+                });
+                
+                if (!response.ok) {
+                    alert('Invalid admin password');
+                    return;
+                }
+                
+                const data = await response.json();
+                const sessionToken = data.token;
+                if (!sessionToken) {
+                    alert('Failed to obtain session token');
+                    return;
+                }
+                
+                sessionStorage.setItem('watchPartySessionToken', sessionToken);
+                sessionStorage.setItem('watchPartyCsrfToken', data.csrfToken || '');
+            } catch (err) {
+                alert('Error verifying password: ' + err.message);
+                return;
+            }
+            
+            const modal = document.getElementById('createPartyModal');
+            modal.style.display = 'flex';
+            
+            const embyServerUrl = document.getElementById('serverUrl').value.trim();
+            if (!embyServerUrl) {
+                alert('Please set Emby server URL first');
+                modal.style.display = 'none';
+                return;
+            }
+            
+            await loadLibrariesForCreate(embyServerUrl);
+            await loadUsersForCreate(embyServerUrl);
+        }
+        
+        function hideCreatePartyModal() {
+            const modal = document.getElementById('createPartyModal');
+            modal.style.display = 'none';
+            document.getElementById('newIsActive').checked = true;
+            document.getElementById('newMaxParticipants').value = 50;
+            document.getElementById('newPartyPassword').value = '';
+            document.getElementById('newMasterUser').value = '';
+            document.getElementById('newAllowedUsers').selectedIndex = -1;
+            document.getElementById('newWaitingRoom').checked = false;
+            document.getElementById('newAutoStart').checked = false;
+            document.getElementById('newMinReady').value = 1;
+            document.getElementById('newPauseControl').value = 'Anyone';
+            document.getElementById('newHostOnlySeek').checked = false;
+            document.getElementById('newLockSeekAhead').checked = false;
+            document.getElementById('newSyncTolerance').value = 10;
+            document.getElementById('newMaxBuffer').value = 30;
+            document.getElementById('newAutoKick').checked = false;
+            document.getElementById('newInactiveTimeout').value = 15;
+            document.getElementById('seriesControls').style.display = 'none';
+            
+            document.getElementById('searchContent').value = '';
+            document.getElementById('newContentItem').value = '';
+            document.getElementById('searchSeason').value = '';
+            document.getElementById('newSeason').value = '';
+            document.getElementById('searchEpisode').value = '';
+            document.getElementById('newEpisode').value = '';
+            
+            document.getElementById('searchContentDropdown').classList.remove('show');
+            document.getElementById('searchSeasonDropdown').classList.remove('show');
+            document.getElementById('searchEpisodeDropdown').classList.remove('show');
+        }
+        
+        async function loadLibrariesForCreate(serverUrl) {
+            try {
+                const webServerUrl = window.location.origin;
+                const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+                const response = await fetch(`${webServerUrl}/api/emby/Library/MediaFolders`, {
+                    headers: { 
+                        'Accept': 'application/json',
+                        'X-Session-Token': sessionToken
+                    }
+                });
+                const data = await response.json();
+                const libraries = data.Items || [];
+                
+                const sourceSelect = document.getElementById('newSourceLibrary');
+                
+                sourceSelect.innerHTML = '<option value="">-- Select library --</option>';
+                
+                libraries.forEach(lib => {
+                    const sourceOption = document.createElement('option');
+                    sourceOption.value = lib.Id;
+                    sourceOption.dataset.name = lib.Name;
+                    sourceOption.dataset.path = lib.Locations && lib.Locations.length > 0 ? lib.Locations[0] : '';
+                    sourceOption.textContent = lib.Name;
+                    sourceSelect.appendChild(sourceOption);
+                });
+            } catch (err) {
+                console.error('Error loading libraries:', err);
+            }
+        }
+        
+        async function loadUsersForCreate(serverUrl) {
+            try {
+                const webServerUrl = window.location.origin;
+                const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+                const response = await fetch(`${webServerUrl}/api/emby/Users`, {
+                    headers: { 
+                        'Accept': 'application/json',
+                        'X-Session-Token': sessionToken
+                    }
+                });
+                const users = await response.json();
+                
+                const masterSelect = document.getElementById('newMasterUser');
+                const allowedSelect = document.getElementById('newAllowedUsers');
+                
+                masterSelect.innerHTML = '<option value="">-- Select master user --</option>';
+                allowedSelect.innerHTML = '';
+                
+                users.forEach(user => {
+                    const masterOption = document.createElement('option');
+                    masterOption.value = user.Id;
+                    masterOption.textContent = user.Name;
+                    masterSelect.appendChild(masterOption);
+                    
+                    const allowedOption = masterOption.cloneNode(true);
+                    allowedSelect.appendChild(allowedOption);
+                });
+            } catch (err) {
+                console.error('Error loading users:', err);
+            }
+        }
+        
+        async function loadContentForCreate(libraryId) {
+            const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            window.searchContent_searchMode = false;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${libraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=0&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
+                const data = await response.json();
+                const items = data.Items || [];
+                const totalCount = data.TotalRecordCount || items.length;
+                
+                window.searchContent_items = items.map(item => {
+                    const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
+                    const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
+                    return {
+                        id: item.Id,
+                        text: `${item.Name}${year}${type}`,
+                        type: item.Type,
+                        name: item.Name
+                    };
+                });
+                
+                window.searchContent_metadata = {
+                    hasMore: items.length < totalCount,
+                    currentCount: items.length,
+                    totalCount: totalCount
+                };
+                
+                window.contentOffset = items.length;
+            } catch (err) {
+                console.error('Error loading content:', err);
+            }
+        }
+        
+        async function loadSeasonsForCreate(seriesId) {
+            const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            window.searchSeason_searchMode = false;
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=0&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
+                const data = await response.json();
+                const seasons = data.Items || [];
+                const totalCount = data.TotalRecordCount || seasons.length;
+                
+                window.searchSeason_items = seasons.map(season => {
+                    const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
+                    return {
+                        id: season.Id,
+                        text: `${season.Name || 'Season' + seasonNum}`,
+                        name: season.Name || 'Season' + seasonNum
+                    };
+                });
+                
+                window.searchSeason_metadata = {
+                    hasMore: seasons.length < totalCount,
+                    currentCount: seasons.length,
+                    totalCount: totalCount
+                };
+                
+                window.seasonsOffset = seasons.length;
+            } catch (err) {
+                console.error('Error loading seasons:', err);
+            }
+        }
+        
+        async function loadEpisodesForCreate(seriesId, seasonId) {
+            const webServerUrl = window.location.origin;
+            window.searchEpisode_searchMode = false;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${seasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=0&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
+                const data = await response.json();
+                const episodes = data.Items || [];
+                const totalCount = data.TotalRecordCount || episodes.length;
+                
+                window.searchEpisode_items = episodes.map(episode => {
+                    const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
+                    const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
+                    return {
+                        id: episode.Id,
+                        text: `${seasonNum}${epNum} - ${episode.Name}`,
+                        name: episode.Name
+                    };
+                });
+                
+                window.searchEpisode_metadata = {
+                    hasMore: episodes.length < totalCount,
+                    currentCount: episodes.length,
+                    totalCount: totalCount
+                };
+                
+                window.episodesOffset = episodes.length;
+            } catch (err) {
+                console.error('Error loading episodes:', err);
+            }
+        }
+        
+        async function loadMoreContent() {
+            if (!window.currentLibraryId) return;
+            
+            const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Items?ParentId=${window.currentLibraryId}&Recursive=true&IncludeItemTypes=Movie,Series&SortBy=SortName&Fields=Id,Name,ProductionYear,Type&StartIndex=${window.contentOffset}&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
+                const data = await response.json();
+                const items = data.Items || [];
+                const totalCount = data.TotalRecordCount || items.length;
+                
+                const newItems = items.map(item => {
+                    const year = item.ProductionYear ? ` (${item.ProductionYear})` : '';
+                    const type = item.Type === 'Series' ? ' [TV Show]' : ' [Movie]';
+                    return {
+                        id: item.Id,
+                        text: `${item.Name}${year}${type}`,
+                        type: item.Type,
+                        name: item.Name
+                    };
+                });
+                
+                window.searchContent_items = window.searchContent_items.concat(newItems);
+                window.contentOffset += items.length;
+                
+                window.searchContent_metadata = {
+                    hasMore: window.contentOffset < totalCount,
+                    currentCount: window.contentOffset,
+                    totalCount: totalCount
+                };
+                
+                renderDropdown('searchContent', 'newContentItem', 'searchContentDropdown', 
+                    document.getElementById('searchContent').value, 
+                    null, 
+                    loadMoreContent);
+            } catch (err) {
+                console.error('Error loading more content:', err);
+            }
+        }
+        
+        async function loadMoreSeasons() {
+            if (!window.currentSeriesId) return;
+            
+            const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${window.currentSeriesId}/Seasons?Fields=Id,Name,IndexNumber&StartIndex=${window.seasonsOffset}&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
+                const data = await response.json();
+                const seasons = data.Items || [];
+                const totalCount = data.TotalRecordCount || seasons.length;
+                
+                const newItems = seasons.map(season => {
+                    const seasonNum = season.IndexNumber ? ` ${season.IndexNumber}` : '';
+                    return {
+                        id: season.Id,
+                        text: `${season.Name || 'Season' + seasonNum}`,
+                        name: season.Name || 'Season' + seasonNum
+                    };
+                });
+                
+                window.searchSeason_items = window.searchSeason_items.concat(newItems);
+                window.seasonsOffset += seasons.length;
+                
+                window.searchSeason_metadata = {
+                    hasMore: window.seasonsOffset < totalCount,
+                    currentCount: window.seasonsOffset,
+                    totalCount: totalCount
+                };
+                
+                renderDropdown('searchSeason', 'newSeason', 'searchSeasonDropdown', 
+                    document.getElementById('searchSeason').value, 
+                    null, 
+                    loadMoreSeasons);
+            } catch (err) {
+                console.error('Error loading more seasons:', err);
+            }
+        }
+        
+        async function loadMoreEpisodes() {
+            if (!window.currentSeasonId) return;
+            
+            const seriesId = document.getElementById('newContentItem').value;
+            
+            const webServerUrl = window.location.origin;
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            try {
+                const response = await fetch(`${webServerUrl}/api/emby/Shows/${seriesId}/Episodes?SeasonId=${window.currentSeasonId}&Fields=Id,Name,IndexNumber,ParentIndexNumber&StartIndex=${window.episodesOffset}&Limit=100`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
+                const data = await response.json();
+                const episodes = data.Items || [];
+                const totalCount = data.TotalRecordCount || episodes.length;
+                
+                const newItems = episodes.map(episode => {
+                    const epNum = episode.IndexNumber ? `E${episode.IndexNumber}` : '';
+                    const seasonNum = episode.ParentIndexNumber ? `S${episode.ParentIndexNumber}` : '';
+                    return {
+                        id: episode.Id,
+                        text: `${seasonNum}${epNum} - ${episode.Name}`,
+                        name: episode.Name
+                    };
+                });
+                
+                window.searchEpisode_items = window.searchEpisode_items.concat(newItems);
+                window.episodesOffset += episodes.length;
+                
+                window.searchEpisode_metadata = {
+                    hasMore: window.episodesOffset < totalCount,
+                    currentCount: window.episodesOffset,
+                    totalCount: totalCount
+                };
+                
+                renderDropdown('searchEpisode', 'newEpisode', 'searchEpisodeDropdown', 
+                    document.getElementById('searchEpisode').value, 
+                    null, 
+                    loadMoreEpisodes);
+            } catch (err) {
+                console.error('Error loading more episodes:', err);
+            }
+        }
+        
+        async function createParty() {
+            const embyServerUrl = document.getElementById('serverUrl').value.trim();
+            const webServerUrl = window.location.origin;
+            
+            const sourceLibraryId = document.getElementById('newSourceLibrary').value;
+            
+            const contentInput = document.getElementById('newContentItem');
+            const contentId = contentInput.value;
+            const contentType = contentInput.dataset.type || '';
+            const contentName = contentInput.dataset.name || '';
+            
+            const maxParticipants = parseInt(document.getElementById('newMaxParticipants').value);
+            const partyPassword = document.getElementById('newPartyPassword').value.trim();
+            const sessionToken = sessionStorage.getItem('watchPartySessionToken');
+            const masterUserId = document.getElementById('newMasterUser').value;
+            
+            if (!sessionToken) {
+                alert('Session expired. Please try again.');
+                hideCreatePartyModal();
+                return;
+            }
+            
+            if (!sourceLibraryId) {
+                alert('Please select a source library');
+                return;
+            }
+            
+            if (!contentId) {
+                alert('Please select content to watch');
+                return;
+            }
+            
+            if (!masterUserId) {
+                alert('Please select a master user');
+                return;
+            }
+            
+            // Get configured STRM target library from server
+            let targetLibraryId, targetLibraryName;
+            try {
+                const configResponse = await fetch(`${webServerUrl}/api/config/strm-library`, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
+                const configData = await configResponse.json();
+                targetLibraryId = configData.targetLibraryId;
+                targetLibraryName = configData.targetLibraryName;
+                
+                if (!targetLibraryId || !targetLibraryName) {
+                    alert('STRM target library not configured in plugin settings. Please configure it first.');
+                    return;
+                }
+            } catch (err) {
+                console.error('Error getting STRM library config:', err);
+                alert('Failed to get STRM library configuration from server');
+                return;
+            }
+            
+            let finalItemId = contentId;
+            let finalItemName = contentName;
+            let finalItemType = contentType;
+            let seriesId = null;
+            let seasonId = null;
+            
+            if (contentType === 'Series') {
+                const episodeInput = document.getElementById('newEpisode');
+                const episodeId = episodeInput.value;
+                
+                if (!episodeId) {
+                    alert('Please select an episode for TV shows');
+                    return;
+                }
+                
+                finalItemId = episodeId;
+                finalItemType = 'Episode';
+                finalItemName = episodeInput.dataset.name || '';
+                seriesId = contentId;
+                seasonId = document.getElementById('newSeason').value;
+            }
+            
+            const allowedUsersSelect = document.getElementById('newAllowedUsers');
+            const allowedUserIds = Array.from(allowedUsersSelect.selectedOptions).map(opt => opt.value);
+            
+            try {
+                const partyData = {
+                    libraryId: sourceLibraryId,
+                    itemId: finalItemId,
+                    itemName: finalItemName,
+                    itemType: finalItemType,
+                    seriesId: seriesId,
+                    seasonId: seasonId,
+                    collectionName: targetLibraryName,
+                    targetLibraryId: targetLibraryId,
+                    isActive: document.getElementById('newIsActive').checked,
+                    maxParticipants: maxParticipants,
+                    allowedUserIds: allowedUserIds,
+                    masterUserId: masterUserId,
+                    password: partyPassword || null,
+                    isWaitingRoom: document.getElementById('newWaitingRoom').checked,
+                    autoStartWhenReady: document.getElementById('newAutoStart').checked,
+                    minReadyCount: parseInt(document.getElementById('newMinReady').value),
+                    pauseControl: document.getElementById('newPauseControl').value,
+                    hostOnlySeek: document.getElementById('newHostOnlySeek').checked,
+                    lockSeekAhead: document.getElementById('newLockSeekAhead').checked,
+                    syncToleranceSeconds: parseInt(document.getElementById('newSyncTolerance').value),
+                    maxBufferThresholdSeconds: parseInt(document.getElementById('newMaxBuffer').value),
+                    autoKickInactiveMinutes: document.getElementById('newAutoKick').checked,
+                    inactiveTimeoutMinutes: parseInt(document.getElementById('newInactiveTimeout').value),
+                    enableNetworkLatencyCompensation: document.getElementById('newEnableNetworkLatencyCompensation').checked,
+                    networkLatencyMeasurementIntervalSeconds: parseInt(document.getElementById('newNetworkLatencyMeasurementIntervalSeconds').value),
+                    autoAdjustForLatency: document.getElementById('newAutoAdjustForLatency').checked,
+                    maxLatencyCompensationMs: parseInt(document.getElementById('newMaxLatencyCompensationMs').value)
+                };
+                
+                const csrfToken = sessionStorage.getItem('watchPartyCsrfToken');
+                const response = await fetch(`${webServerUrl}/api/parties/create`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Session-Token': sessionToken,
+                        'X-CSRF-Token': csrfToken || ''
+                    },
+                    body: JSON.stringify(partyData)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create party');
+                }
+                
+                const result = await response.json();
+                alert('Party created successfully!');
+                hideCreatePartyModal();
+                loadParties();
+            } catch (err) {
+                alert(`Error creating party: ${err.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
